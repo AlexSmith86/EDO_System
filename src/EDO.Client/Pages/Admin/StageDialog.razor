@@ -1,0 +1,53 @@
+@using EDO.Client.Services
+@inject IRoleService RoleService
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsEdit ? "Редактирование этапа" : "Новый этап согласования")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="Model.Name" Label="Название этапа" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudSelect @bind-Value="Model.RoleId" Label="Роль (кто согласует)" Variant="Variant.Outlined"
+                   Required="true" Class="mb-3">
+            @foreach (var role in _roles)
+            {
+                <MudSelectItem Value="@role.Id">@role.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudNumericField @bind-Value="Model.OrderSequence" Label="Порядковый номер" Variant="Variant.Outlined"
+                         Min="1" Required="true" Class="mb-3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Отмена</MudButton>
+        <MudButton OnClick="Submit" Variant="Variant.Filled" Color="Color.Warning"
+                   Style="text-transform: none;">
+            @(IsEdit ? "Сохранить" : "Создать")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public StageDialogModel Model { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+
+    private List<RoleDto> _roles = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _roles = await RoleService.GetAllAsync();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+
+    public class StageDialogModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public int RoleId { get; set; }
+        public int OrderSequence { get; set; } = 1;
+    }
+}

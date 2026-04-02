@@ -34,5 +34,7 @@ builder.Services.AddScoped<IContractorService>(sp =>
     new ContractorService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
 builder.Services.AddScoped<ITemplateService>(sp =>
     new TemplateService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+builder.Services.AddScoped<IApprovalStageService>(sp =>
+    new ApprovalStageService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
 
 await builder.Build().RunAsync();
