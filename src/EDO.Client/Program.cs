@@ -18,4 +18,15 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<JwtAuthenticationStateProvider>());
 builder.Services.AddAuthorizationCore();
 
+// HTTP-клиент с авторизацией для API-сервисов
+builder.Services.AddScoped<AuthHttpHandler>();
+builder.Services.AddHttpClient("EDO.API", client =>
+    client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress))
+    .AddHttpMessageHandler<AuthHttpHandler>();
+
+builder.Services.AddScoped<IRoleService>(sp =>
+    new RoleService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+builder.Services.AddScoped<IUserService>(sp =>
+    new UserService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+
 await builder.Build().RunAsync();

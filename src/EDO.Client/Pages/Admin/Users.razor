@@ -1,0 +1,169 @@
+@page "/admin/users"
+@attribute [Authorize]
+@using EDO.Client.Services
+@inject IUserService UserService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-4">Управление пользователями</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.PersonAdd"
+           OnClick="@OpenCreateDialog" Class="mb-4" Style="text-transform: none;">
+    Добавить пользователя
+</MudButton>
+
+<MudTable Items="@_users" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
+          Dense="true" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+        <MudTh>ФИО</MudTh>
+        <MudTh>Должность</MudTh>
+        <MudTh>Email</MudTh>
+        <MudTh>Роль</MudTh>
+        <MudTh>Telegram</MudTh>
+        <MudTh>Статус</MudTh>
+        <MudTh>Действия</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="ФИО">@context.LastName @context.FirstName @context.MiddleName</MudTd>
+        <MudTd DataLabel="Должность">@context.Position</MudTd>
+        <MudTd DataLabel="Email">@context.Email</MudTd>
+        <MudTd DataLabel="Роль">
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary">@context.RoleName</MudChip>
+        </MudTd>
+        <MudTd DataLabel="Telegram">@(context.TelegramId ?? "—")</MudTd>
+        <MudTd DataLabel="Статус">
+            @if (context.IsActive)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Success">Активен</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Error">Неактивен</MudChip>
+            }
+        </MudTd>
+        <MudTd DataLabel="Действия">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => OpenEditDialog(context))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Пользователи не найдены</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>Загрузка...</MudText>
+    </LoadingContent>
+</MudTable>
+
+@code {
+    private List<UserDto> _users = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        _loading = true;
+        try
+        {
+            _users = await UserService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка загрузки: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<UserDialog>
+        {
+            { x => x.Model, new UserDialog.UserDialogModel() },
+            { x => x.IsEdit, false }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<UserDialog>("Новый пользователь", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: UserDialog.UserDialogModel model })
+        {
+            try
+            {
+                await UserService.CreateAsync(new CreateUserDto
+                {
+                    LastName = model.LastName,
+                    FirstName = model.FirstName,
+                    MiddleName = model.MiddleName,
+                    Position = model.Position,
+                    RoleId = model.RoleId,
+                    TelegramId = model.TelegramId,
+                    Email = model.Email,
+                    Password = model.Password ?? string.Empty
+                });
+                Snackbar.Add("Пользователь создан", Severity.Success);
+                await LoadUsers();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenEditDialog(UserDto user)
+    {
+        var model = new UserDialog.UserDialogModel
+        {
+            LastName = user.LastName,
+            FirstName = user.FirstName,
+            MiddleName = user.MiddleName,
+            Position = user.Position,
+            RoleId = user.RoleId,
+            TelegramId = user.TelegramId,
+            Email = user.Email,
+            IsActive = user.IsActive
+        };
+
+        var parameters = new DialogParameters<UserDialog>
+        {
+            { x => x.Model, model },
+            { x => x.IsEdit, true }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<UserDialog>("Редактирование", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: UserDialog.UserDialogModel edited })
+        {
+            try
+            {
+                await UserService.UpdateAsync(user.Id, new UpdateUserDto
+                {
+                    LastName = edited.LastName,
+                    FirstName = edited.FirstName,
+                    MiddleName = edited.MiddleName,
+                    Position = edited.Position,
+                    RoleId = edited.RoleId,
+                    TelegramId = edited.TelegramId,
+                    Email = edited.Email,
+                    Password = edited.Password,
+                    IsActive = edited.IsActive
+                });
+                Snackbar.Add("Пользователь обновлён", Severity.Success);
+                await LoadUsers();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}
