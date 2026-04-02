@@ -12,6 +12,8 @@ public class AppDbContext : DbContext
     public DbSet<Tmc> Tmcs => Set<Tmc>();
     public DbSet<Contractor> Contractors => Set<Contractor>();
     public DbSet<DocumentTemplate> DocumentTemplates => Set<DocumentTemplate>();
+    public DbSet<ApprovalStage> ApprovalStages => Set<ApprovalStage>();
+    public DbSet<ActionHistory> ActionHistories => Set<ActionHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +69,32 @@ public class AppDbContext : DbContext
             entity.Property(d => d.Name).HasMaxLength(200).IsRequired();
             entity.Property(d => d.FilePath).HasMaxLength(500).IsRequired();
             entity.Property(d => d.ProcessType).HasMaxLength(100).IsRequired();
+        });
+
+        modelBuilder.Entity<ApprovalStage>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            entity.HasOne(s => s.Role)
+                  .WithMany()
+                  .HasForeignKey(s => s.RoleId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ActionHistory>(entity =>
+        {
+            entity.HasKey(h => h.Id);
+            entity.Property(h => h.Decision).HasConversion<string>().HasMaxLength(20);
+            entity.Property(h => h.Comment).HasMaxLength(1000);
+            entity.HasOne(h => h.User)
+                  .WithMany()
+                  .HasForeignKey(h => h.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(h => h.Stage)
+                  .WithMany()
+                  .HasForeignKey(h => h.StageId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(h => h.DocumentId);
         });
     }
 }
