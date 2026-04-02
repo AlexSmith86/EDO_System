@@ -1,0 +1,38 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsEdit ? "Редактирование шаблона" : "Новый шаблон")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="Model.Name" Label="Название шаблона" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="Model.FilePath" Label="Путь к файлу" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="Model.ProcessType" Label="Тип процесса" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Отмена</MudButton>
+        <MudButton OnClick="Submit" Variant="Variant.Filled" Color="Color.Warning"
+                   Style="text-transform: none;">
+            @(IsEdit ? "Сохранить" : "Создать")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public TemplateDialogModel Model { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+
+    public class TemplateDialogModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public string ProcessType { get; set; } = string.Empty;
+    }
+}

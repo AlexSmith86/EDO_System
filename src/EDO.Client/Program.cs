@@ -28,5 +28,11 @@ builder.Services.AddScoped<IRoleService>(sp =>
     new RoleService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
 builder.Services.AddScoped<IUserService>(sp =>
     new UserService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+builder.Services.AddScoped<ITmcService>(sp =>
+    new TmcService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+builder.Services.AddScoped<IContractorService>(sp =>
+    new ContractorService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+builder.Services.AddScoped<ITemplateService>(sp =>
+    new TemplateService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
 
 await builder.Build().RunAsync();

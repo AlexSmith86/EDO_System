@@ -1,0 +1,119 @@
+@page "/dictionaries/contractors"
+@attribute [Authorize]
+@using EDO.Client.Services
+@inject IContractorService ContractorService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-4">Контрагенты</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Add"
+           OnClick="@OpenCreateDialog" Class="mb-4" Style="text-transform: none;">
+    Добавить контрагента
+</MudButton>
+
+<MudTable Items="@_items" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
+          Dense="true" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+        <MudTh>Наименование</MudTh>
+        <MudTh>ИНН</MudTh>
+        <MudTh>Тип</MudTh>
+        <MudTh>Внешний ID</MudTh>
+        <MudTh>Действия</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Наименование">@context.Name</MudTd>
+        <MudTd DataLabel="ИНН">@(context.Inn ?? "—")</MudTd>
+        <MudTd DataLabel="Тип">
+            <MudChip T="string" Size="Size.Small"
+                     Color="@(context.ContractorType == "Supplier" ? Color.Info : Color.Success)">
+                @(context.ContractorType == "Supplier" ? "Поставщик" : "Клиент")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Внешний ID">@(context.ExternalId ?? "—")</MudTd>
+        <MudTd DataLabel="Действия">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                           OnClick="@(() => OpenEditDialog(context))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Записи не найдены</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>Загрузка...</MudText>
+    </LoadingContent>
+</MudTable>
+
+@code {
+    private List<ContractorDto> _items = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _items = await ContractorService.GetAllAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<ContractorDialog>
+        {
+            { x => x.Model, new ContractorDialog.ContractorDialogModel() },
+            { x => x.IsEdit, false }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ContractorDialog>("Новый контрагент", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: ContractorDialog.ContractorDialogModel model })
+        {
+            try
+            {
+                await ContractorService.CreateAsync(new CreateContractorDto
+                {
+                    Name = model.Name, Inn = model.Inn,
+                    ContractorType = model.ContractorType, ExternalId = model.ExternalId
+                });
+                Snackbar.Add("Контрагент создан", Severity.Success);
+                await Load();
+            }
+            catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        }
+    }
+
+    private async Task OpenEditDialog(ContractorDto item)
+    {
+        var model = new ContractorDialog.ContractorDialogModel
+        {
+            Name = item.Name, Inn = item.Inn,
+            ContractorType = item.ContractorType, ExternalId = item.ExternalId
+        };
+        var parameters = new DialogParameters<ContractorDialog>
+        {
+            { x => x.Model, model },
+            { x => x.IsEdit, true }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ContractorDialog>("Редактирование", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: ContractorDialog.ContractorDialogModel edited })
+        {
+            try
+            {
+                await ContractorService.UpdateAsync(item.Id, new UpdateContractorDto
+                {
+                    Name = edited.Name, Inn = edited.Inn,
+                    ContractorType = edited.ContractorType, ExternalId = edited.ExternalId
+                });
+                Snackbar.Add("Контрагент обновлён", Severity.Success);
+                await Load();
+            }
+            catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        }
+    }
+}

@@ -1,0 +1,41 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsEdit ? "Редактирование ТМЦ" : "Новая ТМЦ")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="Model.Name" Label="Наименование" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="Model.Article" Label="Артикул" Variant="Variant.Outlined"
+                      Class="mb-3" />
+        <MudNumericField @bind-Value="Model.StockBalance" Label="Остаток" Variant="Variant.Outlined"
+                         Class="mb-3" />
+        <MudTextField @bind-Value="Model.ExternalId" Label="Внешний ID (1С)" Variant="Variant.Outlined"
+                      Class="mb-3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Отмена</MudButton>
+        <MudButton OnClick="Submit" Variant="Variant.Filled" Color="Color.Warning"
+                   Style="text-transform: none;">
+            @(IsEdit ? "Сохранить" : "Создать")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public TmcDialogModel Model { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+
+    public class TmcDialogModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Article { get; set; }
+        public string? ExternalId { get; set; }
+        public decimal StockBalance { get; set; }
+    }
+}

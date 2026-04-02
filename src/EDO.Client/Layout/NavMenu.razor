@@ -2,6 +2,18 @@
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">
         Реестр
     </MudNavLink>
+    <MudNavGroup Title="Справочники" Icon="@Icons.Material.Filled.MenuBook"
+                 Expanded="false">
+        <MudNavLink Href="/dictionaries/tmcs" Icon="@Icons.Material.Filled.Inventory">
+            ТМЦ
+        </MudNavLink>
+        <MudNavLink Href="/dictionaries/contractors" Icon="@Icons.Material.Filled.Business">
+            Контрагенты
+        </MudNavLink>
+        <MudNavLink Href="/dictionaries/templates" Icon="@Icons.Material.Filled.Description">
+            Шаблоны документов
+        </MudNavLink>
+    </MudNavGroup>
     <MudNavGroup Title="Администрирование" Icon="@Icons.Material.Filled.AdminPanelSettings"
                  Expanded="false">
         <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.People">

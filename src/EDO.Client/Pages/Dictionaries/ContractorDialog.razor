@@ -1,0 +1,44 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsEdit ? "Редактирование контрагента" : "Новый контрагент")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="Model.Name" Label="Наименование" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="Model.Inn" Label="ИНН" Variant="Variant.Outlined"
+                      MaxLength="12" Class="mb-3" />
+        <MudSelect @bind-Value="Model.ContractorType" Label="Тип" Variant="Variant.Outlined"
+                   Required="true" Class="mb-3">
+            <MudSelectItem Value="@("Supplier")">Поставщик</MudSelectItem>
+            <MudSelectItem Value="@("Client")">Клиент</MudSelectItem>
+        </MudSelect>
+        <MudTextField @bind-Value="Model.ExternalId" Label="Внешний ID (1С)" Variant="Variant.Outlined"
+                      Class="mb-3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Отмена</MudButton>
+        <MudButton OnClick="Submit" Variant="Variant.Filled" Color="Color.Warning"
+                   Style="text-transform: none;">
+            @(IsEdit ? "Сохранить" : "Создать")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public ContractorDialogModel Model { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+
+    public class ContractorDialogModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Inn { get; set; }
+        public string ContractorType { get; set; } = "Supplier";
+        public string? ExternalId { get; set; }
+    }
+}
