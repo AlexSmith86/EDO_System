@@ -1,0 +1,184 @@
+@page "/documents/tmcrequests/create"
+@page "/documents/tmcrequests/edit/{Id:int}"
+@attribute [Authorize]
+@using EDO.Client.Services
+@inject ITmcRequestService RequestService
+@inject ITmcService TmcService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-2">@(_isEdit ? "Редактирование заявки" : "Новая заявка на ТМЦ")</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    Заполните табличную часть и сохраните заявку
+</MudText>
+
+@if (_loadingTmcs)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Warning" />
+}
+else
+{
+    <MudCard Elevation="2" Class="pa-4 mb-4">
+        <MudCardContent>
+            <MudText Typo="Typo.subtitle1" Class="mb-3" Style="font-weight: 600;">Позиции заявки</MudText>
+
+            <MudTable Items="@_items" Hover="true" Dense="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>ТМЦ</MudTh>
+                    <MudTh Style="width: 180px;">Количество</MudTh>
+                    <MudTh Style="width: 60px;"></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudAutocomplete T="TmcDto" @bind-Value="context.SelectedTmc"
+                                         SearchFunc="@SearchTmc"
+                                         ToStringFunc="@(t => t?.Name ?? string.Empty)"
+                                         Label="Выберите ТМЦ" Variant="Variant.Outlined"
+                                         Dense="true" Margin="Margin.Dense" />
+                    </MudTd>
+                    <MudTd>
+                        <MudNumericField @bind-Value="context.Quantity" Label="Кол-во"
+                                         Variant="Variant.Outlined" Min="0.0001m"
+                                         Margin="Margin.Dense" />
+                    </MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                       Color="Color.Error" OnClick="@(() => RemoveItem(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Color="Color.Secondary">Добавьте позиции в заявку</MudText>
+                </NoRecordsContent>
+            </MudTable>
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                       StartIcon="@Icons.Material.Filled.AddCircleOutline"
+                       OnClick="@AddItem" Class="mt-3" Style="text-transform: none;">
+                Добавить строку
+            </MudButton>
+        </MudCardContent>
+
+        <MudCardActions Class="pa-4 pt-0">
+            <MudButton Variant="Variant.Text" OnClick="@GoBack" Style="text-transform: none;">
+                Отмена
+            </MudButton>
+            <MudSpacer />
+            <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                       OnClick="@Save" Disabled="@_saving"
+                       Style="text-transform: none;">
+                @if (_saving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                @(_isEdit ? "Сохранить" : "Создать черновик")
+            </MudButton>
+        </MudCardActions>
+    </MudCard>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private List<RequestItemRow> _items = new();
+    private List<TmcDto> _allTmcs = new();
+    private bool _loadingTmcs = true;
+    private bool _saving;
+    private bool _isEdit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _allTmcs = await TmcService.GetAllAsync();
+
+            if (Id.HasValue)
+            {
+                _isEdit = true;
+                var existing = await RequestService.GetByIdAsync(Id.Value);
+                if (existing is not null)
+                {
+                    _items = existing.Items.Select(i => new RequestItemRow
+                    {
+                        SelectedTmc = _allTmcs.FirstOrDefault(t => t.Id == i.TmcId),
+                        Quantity = i.Quantity
+                    }).ToList();
+                }
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _loadingTmcs = false; }
+    }
+
+    private void AddItem()
+    {
+        _items.Add(new RequestItemRow());
+    }
+
+    private void RemoveItem(RequestItemRow item)
+    {
+        _items.Remove(item);
+    }
+
+    private Task<IEnumerable<TmcDto>> SearchTmc(string? value, CancellationToken ct)
+    {
+        var result = string.IsNullOrWhiteSpace(value)
+            ? _allTmcs
+            : _allTmcs.Where(t => t.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
+
+    private async Task Save()
+    {
+        // Валидация
+        if (_items.Count == 0)
+        {
+            Snackbar.Add("Добавьте хотя бы одну позицию", Severity.Warning);
+            return;
+        }
+
+        if (_items.Any(i => i.SelectedTmc is null))
+        {
+            Snackbar.Add("Выберите ТМЦ для всех позиций", Severity.Warning);
+            return;
+        }
+
+        if (_items.Any(i => i.Quantity <= 0))
+        {
+            Snackbar.Add("Количество должно быть больше 0", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var dtoItems = _items.Select(i => new CreateTmcRequestItemDto
+            {
+                TmcId = i.SelectedTmc!.Id,
+                Quantity = i.Quantity
+            }).ToList();
+
+            if (_isEdit && Id.HasValue)
+            {
+                await RequestService.UpdateAsync(Id.Value, new UpdateTmcRequestDto { Items = dtoItems });
+                Snackbar.Add("Заявка обновлена", Severity.Success);
+            }
+            else
+            {
+                await RequestService.CreateAsync(new CreateTmcRequestDto { Items = dtoItems });
+                Snackbar.Add("Заявка создана", Severity.Success);
+            }
+
+            Navigation.NavigateTo("/documents/tmcrequests");
+        }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/documents/tmcrequests");
+
+    private class RequestItemRow
+    {
+        public TmcDto? SelectedTmc { get; set; }
+        public decimal Quantity { get; set; } = 1;
+    }
+}

@@ -14,6 +14,8 @@ public class AppDbContext : DbContext
     public DbSet<DocumentTemplate> DocumentTemplates => Set<DocumentTemplate>();
     public DbSet<ApprovalStage> ApprovalStages => Set<ApprovalStage>();
     public DbSet<ActionHistory> ActionHistories => Set<ActionHistory>();
+    public DbSet<TmcRequest> TmcRequests => Set<TmcRequest>();
+    public DbSet<TmcRequestItem> TmcRequestItems => Set<TmcRequestItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,6 +97,34 @@ public class AppDbContext : DbContext
                   .HasForeignKey(h => h.StageId)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(h => h.DocumentId);
+        });
+
+        modelBuilder.Entity<TmcRequest>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            entity.HasOne(r => r.InitiatorUser)
+                  .WithMany()
+                  .HasForeignKey(r => r.InitiatorUserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(r => r.CurrentStage)
+                  .WithMany()
+                  .HasForeignKey(r => r.CurrentStageId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TmcRequestItem>(entity =>
+        {
+            entity.HasKey(i => i.Id);
+            entity.Property(i => i.Quantity).HasPrecision(18, 4);
+            entity.HasOne(i => i.TmcRequest)
+                  .WithMany(r => r.Items)
+                  .HasForeignKey(i => i.TmcRequestId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(i => i.Tmc)
+                  .WithMany()
+                  .HasForeignKey(i => i.TmcId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

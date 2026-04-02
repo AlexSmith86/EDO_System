@@ -1,0 +1,99 @@
+@page "/documents/tmcrequests"
+@attribute [Authorize]
+@using EDO.Client.Services
+@inject ITmcRequestService RequestService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-2">Заявки на ТМЦ</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    Мои заявки на товарно-материальные ценности
+</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Add"
+           OnClick="@(() => Navigation.NavigateTo("/documents/tmcrequests/create"))"
+           Class="mb-4" Style="text-transform: none;">
+    Создать заявку
+</MudButton>
+
+<MudTable Items="@_items" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
+          Dense="true" Breakpoint="Breakpoint.Sm">
+    <HeaderContent>
+        <MudTh>№</MudTh>
+        <MudTh>Дата</MudTh>
+        <MudTh>Статус</MudTh>
+        <MudTh>Этап</MudTh>
+        <MudTh>Позиций</MudTh>
+        <MudTh>Действия</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="№">@context.Id</MudTd>
+        <MudTd DataLabel="Дата">@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</MudTd>
+        <MudTd DataLabel="Статус">
+            <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)">
+                @GetStatusText(context.Status)
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Этап">@(context.CurrentStageName ?? "—")</MudTd>
+        <MudTd DataLabel="Позиций">@context.Items.Count</MudTd>
+        <MudTd DataLabel="Действия">
+            @if (context.Status == "Draft")
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => Navigation.NavigateTo($"/documents/tmcrequests/edit/{context.Id}"))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Send" Size="Size.Small" Color="Color.Success"
+                               OnClick="@(() => SendRequest(context.Id))" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Заявок пока нет</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>Загрузка...</MudText>
+    </LoadingContent>
+</MudTable>
+
+@code {
+    private List<TmcRequestDto> _items = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _items = await RequestService.GetMyAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task SendRequest(int id)
+    {
+        try
+        {
+            await RequestService.SendAsync(id);
+            Snackbar.Add("Заявка отправлена на согласование", Severity.Success);
+            await Load();
+        }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+    }
+
+    private static Color GetStatusColor(string status) => status switch
+    {
+        "Draft" => Color.Default,
+        "InApproval" => Color.Warning,
+        "Approved" => Color.Success,
+        "Rejected" => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string GetStatusText(string status) => status switch
+    {
+        "Draft" => "Черновик",
+        "InApproval" => "На согласовании",
+        "Approved" => "Согласована",
+        "Rejected" => "Отклонена",
+        _ => status
+    };
+}
