@@ -108,19 +108,25 @@ else if (_stats is not null)
                 <MudText Typo="Typo.subtitle1" Class="mb-3" Style="font-weight: 600;">
                     Распределение по статусам
                 </MudText>
-                @if (_chartData.Length > 0)
+                @if (_stats.RequestsByStatus.Count > 0)
                 {
-                    <div style="max-width: 320px; margin: 0 auto;">
-                        <MudChart T="double" ChartType="ChartType.Donut"
-                                  ChartSeries="@_chartSeries"
-                                  ChartLabels="@_chartLabels"
-                                  ChartOptions="@_chartOptions"
-                                  Width="100%" Height="280px" />
-                    </div>
+                    @foreach (var item in _stats.RequestsByStatus.OrderByDescending(s => s.Count))
+                    {
+                        var total = _stats.RequestsByStatus.Sum(s => s.Count);
+                        var pct = total > 0 ? (int)Math.Round((double)item.Count / total * 100) : 0;
+                        <div class="mb-3">
+                            <div class="d-flex justify-space-between mb-1">
+                                <MudText Typo="Typo.body2">@item.StatusDisplay</MudText>
+                                <MudText Typo="Typo.body2" Style="font-weight: 600;">@item.Count (@pct%)</MudText>
+                            </div>
+                            <MudProgressLinear Value="@pct" Color="@GetStatusColor(item.Status)"
+                                               Size="Size.Medium" Rounded="true" />
+                        </div>
+                    }
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-8" Align="Align.Center">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-4" Align="Align.Center">
                         Нет данных для отображения
                     </MudText>
                 }
@@ -182,28 +188,12 @@ else
     private bool _loading = true;
     private string? _errorMessage;
 
-    private double[] _chartData = Array.Empty<double>();
-    private List<ChartSeries<double>> _chartSeries = new();
-    private string[] _chartLabels = Array.Empty<string>();
-    private ChartOptions _chartOptions = new()
-    {
-        ChartPalette = new[] { "#757575", "#FF9800", "#9C27B0", "#4CAF50", "#2196F3", "#F44336" }
-    };
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _stats = await DashboardService.GetStatsAsync();
-            if (_stats?.RequestsByStatus?.Count > 0)
-            {
-                _chartData = _stats.RequestsByStatus.Select(s => (double)s.Count).ToArray();
-                _chartLabels = _stats.RequestsByStatus.Select(s => $"{s.StatusDisplay} ({s.Count})").ToArray();
-                _chartSeries = new List<ChartSeries<double>>
-                {
-                    new() { Name = "Заявки", Data = _chartData }
-                };
-            }
         }
         catch (Exception ex) { _errorMessage = ex.Message; }
         finally { _loading = false; }

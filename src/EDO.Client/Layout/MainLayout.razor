@@ -23,11 +23,11 @@
         </MudButton>
     </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" Variant="@DrawerVariant.Responsive">
-        <div class="drawer-content">
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Never" Elevation="1" Variant="@DrawerVariant.Responsive">
+        <MudDrawerHeader>
             @if (!string.IsNullOrEmpty(_userName))
             {
-                <div class="d-flex align-center pa-3 user-info">
+                <div class="d-flex align-center">
                     <MudAvatar Color="Color.Warning" Size="Size.Medium" Class="mr-3"
                                Style="font-size: 1.1rem; font-weight: 700;">
                         @_userName[0]
@@ -37,12 +37,9 @@
                         <MudText Typo="Typo.caption" Color="Color.Secondary">@_userPosition</MudText>
                     </div>
                 </div>
-                <MudDivider />
             }
-            <div class="drawer-menu">
-                <NavMenu />
-            </div>
-        </div>
+        </MudDrawerHeader>
+        <NavMenu />
     </MudDrawer>
 
     <MudMainContent>
