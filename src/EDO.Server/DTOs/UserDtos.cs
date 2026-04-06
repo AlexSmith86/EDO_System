@@ -11,6 +11,7 @@ public class UserDto
     public string Position { get; set; } = string.Empty;
     public int RoleId { get; set; }
     public string RoleName { get; set; } = string.Empty;
+    public string? Phone { get; set; }
     public string? TelegramId { get; set; }
     public string Email { get; set; } = string.Empty;
     public bool IsActive { get; set; }
@@ -33,6 +34,9 @@ public class CreateUserDto
 
     [Required]
     public int RoleId { get; set; }
+
+    [MaxLength(30)]
+    public string? Phone { get; set; }
 
     [MaxLength(100)]
     public string? TelegramId { get; set; }
@@ -60,6 +64,9 @@ public class UpdateUserDto
 
     [Required]
     public int RoleId { get; set; }
+
+    [MaxLength(30)]
+    public string? Phone { get; set; }
 
     [MaxLength(100)]
     public string? TelegramId { get; set; }

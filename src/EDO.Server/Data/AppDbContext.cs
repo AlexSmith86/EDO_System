@@ -16,6 +16,8 @@ public class AppDbContext : DbContext
     public DbSet<ActionHistory> ActionHistories => Set<ActionHistory>();
     public DbSet<TmcRequest> TmcRequests => Set<TmcRequest>();
     public DbSet<TmcRequestItem> TmcRequestItems => Set<TmcRequestItem>();
+    public DbSet<TmcGroup> TmcGroups => Set<TmcGroup>();
+    public DbSet<TmcSubgroup> TmcSubgroups => Set<TmcSubgroup>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +36,7 @@ public class AppDbContext : DbContext
             entity.Property(u => u.FirstName).HasMaxLength(100).IsRequired();
             entity.Property(u => u.MiddleName).HasMaxLength(100);
             entity.Property(u => u.Position).HasMaxLength(200).IsRequired();
+            entity.Property(u => u.Phone).HasMaxLength(30);
             entity.Property(u => u.TelegramId).HasMaxLength(100);
             entity.Property(u => u.Email).HasMaxLength(200).IsRequired();
             entity.Property(u => u.PasswordHash).HasMaxLength(200).IsRequired();
@@ -77,9 +80,11 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(s => s.Id);
             entity.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            entity.Property(s => s.RequiredPosition).HasMaxLength(100).IsRequired().HasDefaultValue("");
             entity.HasOne(s => s.Role)
                   .WithMany()
                   .HasForeignKey(s => s.RoleId)
+                  .IsRequired(false)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -99,10 +104,30 @@ public class AppDbContext : DbContext
             entity.HasIndex(h => h.DocumentId);
         });
 
+        modelBuilder.Entity<TmcGroup>(entity =>
+        {
+            entity.HasKey(g => g.Id);
+            entity.Property(g => g.Code).HasMaxLength(20).IsRequired();
+            entity.Property(g => g.Name).HasMaxLength(300).IsRequired();
+            entity.HasIndex(g => g.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<TmcSubgroup>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Code).HasMaxLength(30).IsRequired();
+            entity.Property(s => s.Name).HasMaxLength(500).IsRequired();
+            entity.HasOne(s => s.Group)
+                  .WithMany(g => g.Subgroups)
+                  .HasForeignKey(s => s.GroupId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<TmcRequest>(entity =>
         {
             entity.HasKey(r => r.Id);
             entity.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(r => r.ProjectName).HasMaxLength(300);
             entity.HasOne(r => r.InitiatorUser)
                   .WithMany()
                   .HasForeignKey(r => r.InitiatorUserId)
@@ -116,14 +141,24 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<TmcRequestItem>(entity =>
         {
             entity.HasKey(i => i.Id);
+            entity.Property(i => i.Name).HasMaxLength(500).IsRequired();
             entity.Property(i => i.Quantity).HasPrecision(18, 4);
+            entity.Property(i => i.Unit).HasMaxLength(50);
+            entity.Property(i => i.InvoiceLink).HasMaxLength(1000);
+            entity.Property(i => i.Comment).HasMaxLength(1000);
+            entity.Property(i => i.InitiatorName).HasMaxLength(300);
+            entity.Property(i => i.InitiatorPosition).HasMaxLength(300);
             entity.HasOne(i => i.TmcRequest)
                   .WithMany(r => r.Items)
                   .HasForeignKey(i => i.TmcRequestId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(i => i.Tmc)
+            entity.HasOne(i => i.Group)
                   .WithMany()
-                  .HasForeignKey(i => i.TmcId)
+                  .HasForeignKey(i => i.GroupId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(i => i.Subgroup)
+                  .WithMany()
+                  .HasForeignKey(i => i.SubgroupId)
                   .OnDelete(DeleteBehavior.Restrict);
         });
     }

@@ -33,6 +33,7 @@ public class UsersController : ControllerBase
                 Position = u.Position,
                 RoleId = u.RoleId,
                 RoleName = u.Role.Name,
+                Phone = u.Phone,
                 TelegramId = u.TelegramId,
                 Email = u.Email,
                 IsActive = u.IsActive,
@@ -56,6 +57,7 @@ public class UsersController : ControllerBase
             MiddleName = dto.MiddleName,
             Position = dto.Position,
             RoleId = dto.RoleId,
+            Phone = dto.Phone,
             TelegramId = dto.TelegramId,
             Email = dto.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
@@ -99,6 +101,7 @@ public class UsersController : ControllerBase
         user.MiddleName = dto.MiddleName;
         user.Position = dto.Position;
         user.RoleId = dto.RoleId;
+        user.Phone = dto.Phone;
         user.TelegramId = dto.TelegramId;
         user.Email = dto.Email;
         user.IsActive = dto.IsActive;

@@ -37,6 +37,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<JwtService>();
+builder.Services.AddScoped<IWorkflowEngineService, WorkflowEngineService>();
 
 builder.Services.AddCors(options =>
 {
@@ -46,7 +47,46 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-app.UseHttpsRedirection();
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<EDO.Server.Data.AppDbContext>();
+    context.Database.Migrate();
+
+    var admin = context.Users.FirstOrDefault(u => u.Email == "admin@growtech.com");
+    if (admin == null)
+    {
+        var role = context.Roles.FirstOrDefault(r => r.Name == "Администратор");
+        if (role == null)
+        {
+            role = new EDO.Server.Models.Role { Name = "Администратор", Description = "Системный администратор" };
+            context.Roles.Add(role);
+            context.SaveChanges();
+        }
+
+        context.Users.Add(new EDO.Server.Models.User
+        {
+            FirstName = "Александр",
+            LastName = "Админ",
+            Position = "Директор",
+            Email = "admin@growtech.com",
+            RoleId = role.Id,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456")
+        });
+        context.SaveChanges();
+    }
+    else if (!BCrypt.Net.BCrypt.Verify("123456", admin.PasswordHash))
+    {
+        admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456");
+        context.SaveChanges();
+    }
+
+    SeedData.SeedCategories(context);
+    SeedData.SeedApprovalStages(context);
+    SeedData.SeedEmployees(context);
+}
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();

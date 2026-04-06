@@ -21,11 +21,14 @@ public class JwtService
         var key = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(jwtSettings["Secret"]!));
 
+        var fullName = $"{user.LastName} {user.FirstName}".Trim();
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role.Name)
+            new Claim(ClaimTypes.Name, fullName),
+            new Claim(ClaimTypes.Role, user.Role.Name),
+            new Claim("position", user.Position ?? "")
         };
 
         var token = new JwtSecurityToken(

@@ -1,4 +1,229 @@
 @page "/"
 @attribute [Authorize]
+@using EDO.Client.Services
+@inject IDashboardService DashboardService
+@inject NavigationManager Navigation
 
-<MudText Typo="Typo.h4" Class="mb-4">Единый операционный реестр</MudText>
+<MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
+    <MudText Typo="Typo.h5" Style="font-weight: 700;">Панель управления</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">
+        Единый операционный реестр — сводка по заявкам ТМЦ
+    </MudText>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudGrid>
+        <MudItem xs="12" md="3">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" />
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" />
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" />
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" />
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="300px" />
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="300px" />
+        </MudItem>
+    </MudGrid>
+}
+else if (_stats is not null)
+{
+    @* === Верхний ряд: Персональные метрики === *@
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="3" Style="background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%); cursor: pointer;"
+                     @onclick="@(() => Navigation.NavigateTo("/documents/approvals"))">
+                <MudCardContent Class="d-flex flex-column align-center pa-4">
+                    <MudIcon Icon="@Icons.Material.Filled.PendingActions" Size="Size.Large"
+                             Style="color: rgba(255,255,255,0.85); margin-bottom: 8px;" />
+                    <MudText Typo="Typo.h3" Style="color: white; font-weight: 700;">
+                        @_stats.AwaitingMyApprovalCount
+                    </MudText>
+                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.85); text-align: center;">
+                        Ожидают моего согласования
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="3" Style="background: linear-gradient(135deg, #1976D2 0%, #42A5F5 100%); cursor: pointer;"
+                     @onclick="@(() => Navigation.NavigateTo("/documents/tmcrequests"))">
+                <MudCardContent Class="d-flex flex-column align-center pa-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Large"
+                             Style="color: rgba(255,255,255,0.85); margin-bottom: 8px;" />
+                    <MudText Typo="Typo.h3" Style="color: white; font-weight: 700;">
+                        @_stats.MyActiveRequestsCount
+                    </MudText>
+                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.85); text-align: center;">
+                        Мои активные заявки
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="3" Style="background: linear-gradient(135deg, #2E7D32 0%, #66BB6A 100%);">
+                <MudCardContent Class="d-flex flex-column align-center pa-4">
+                    <MudIcon Icon="@Icons.Material.Filled.Inventory" Size="Size.Large"
+                             Style="color: rgba(255,255,255,0.85); margin-bottom: 8px;" />
+                    <MudText Typo="Typo.h3" Style="color: white; font-weight: 700;">
+                        @_stats.TotalActiveRequestsCount
+                    </MudText>
+                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.85); text-align: center;">
+                        Всего заявок в работе
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="3" Style="background: linear-gradient(135deg, #6A1B9A 0%, #AB47BC 100%);">
+                <MudCardContent Class="d-flex flex-column align-center pa-4">
+                    <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Size="Size.Large"
+                             Style="color: rgba(255,255,255,0.85); margin-bottom: 8px;" />
+                    <MudText Typo="Typo.h3" Style="color: white; font-weight: 700;">
+                        @FormatSum(_stats.TotalActiveRequestsSum)
+                    </MudText>
+                    <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.85); text-align: center;">
+                        Сумма позиций в работе
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* === Нижний ряд: График + Таблица статусов === *@
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2" Class="pa-4" Style="height: 100%;">
+                <MudText Typo="Typo.subtitle1" Class="mb-3" Style="font-weight: 600;">
+                    Распределение по статусам
+                </MudText>
+                @if (_chartData.Length > 0)
+                {
+                    <div style="max-width: 320px; margin: 0 auto;">
+                        <MudChart T="double" ChartType="ChartType.Donut"
+                                  ChartSeries="@_chartSeries"
+                                  ChartLabels="@_chartLabels"
+                                  ChartOptions="@_chartOptions"
+                                  Width="100%" Height="280px" />
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-8" Align="Align.Center">
+                        Нет данных для отображения
+                    </MudText>
+                }
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="2" Class="pa-4" Style="height: 100%;">
+                <MudText Typo="Typo.subtitle1" Class="mb-3" Style="font-weight: 600;">
+                    Детализация по статусам
+                </MudText>
+                <MudSimpleTable Dense="true" Hover="true" Style="background: transparent;">
+                    <thead>
+                        <tr>
+                            <th>Статус</th>
+                            <th style="text-align: right;">Количество</th>
+                            <th style="text-align: right;">Доля</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _stats.RequestsByStatus.OrderByDescending(s => s.Count))
+                        {
+                            var total = _stats.RequestsByStatus.Sum(s => s.Count);
+                            var pct = total > 0 ? (double)item.Count / total * 100 : 0;
+                            <tr>
+                                <td>
+                                    <MudChip T="string" Size="Size.Small"
+                                             Color="@GetStatusColor(item.Status)"
+                                             Style="min-width: 130px; text-align: center;">
+                                        @item.StatusDisplay
+                                    </MudChip>
+                                </td>
+                                <td style="text-align: right; font-weight: 600;">@item.Count</td>
+                                <td style="text-align: right;">@pct.ToString("0.0")%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+
+                @if (_stats.RequestsByStatus.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-4" Align="Align.Center">
+                        Заявок пока нет
+                    </MudText>
+                }
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+else
+{
+    <MudAlert Severity="Severity.Warning" Class="mt-4">
+        Не удалось загрузить данные дашборда@(string.IsNullOrEmpty(_errorMessage) ? "" : $": {_errorMessage}")
+    </MudAlert>
+}
+
+@code {
+    private DashboardStatsDto? _stats;
+    private bool _loading = true;
+    private string? _errorMessage;
+
+    private double[] _chartData = Array.Empty<double>();
+    private List<ChartSeries<double>> _chartSeries = new();
+    private string[] _chartLabels = Array.Empty<string>();
+    private ChartOptions _chartOptions = new()
+    {
+        ChartPalette = new[] { "#757575", "#FF9800", "#9C27B0", "#4CAF50", "#2196F3", "#F44336" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _stats = await DashboardService.GetStatsAsync();
+            if (_stats?.RequestsByStatus?.Count > 0)
+            {
+                _chartData = _stats.RequestsByStatus.Select(s => (double)s.Count).ToArray();
+                _chartLabels = _stats.RequestsByStatus.Select(s => $"{s.StatusDisplay} ({s.Count})").ToArray();
+                _chartSeries = new List<ChartSeries<double>>
+                {
+                    new() { Name = "Заявки", Data = _chartData }
+                };
+            }
+        }
+        catch (Exception ex) { _errorMessage = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private static string FormatSum(decimal sum)
+    {
+        if (sum >= 1_000_000) return $"{sum / 1_000_000:0.#}M";
+        if (sum >= 1_000) return $"{sum / 1_000:0.#}K";
+        return sum.ToString("N0");
+    }
+
+    private static Color GetStatusColor(string status) => status switch
+    {
+        "Draft" => Color.Default,
+        "InApproval" => Color.Warning,
+        "Rework" => Color.Secondary,
+        "Completed" => Color.Success,
+        "Approved" => Color.Info,
+        "Rejected" => Color.Error,
+        _ => Color.Default
+    };
+}

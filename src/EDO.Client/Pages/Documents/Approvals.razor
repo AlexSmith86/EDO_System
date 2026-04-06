@@ -1,0 +1,73 @@
+@page "/documents/approvals"
+@attribute [Authorize]
+@using EDO.Client.Services
+@inject ITmcRequestService RequestService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
+    <MudText Typo="Typo.h5" Style="font-weight: 700;">На согласование</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">
+        Заявки, ожидающие вашего решения
+    </MudText>
+</MudPaper>
+
+<MudTable Items="@_items" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
+          Dense="true" Breakpoint="Breakpoint.Sm" OnRowClick="@OnRowClick" T="TmcRequestDto"
+          RowStyle="cursor: pointer;">
+    <HeaderContent>
+        <MudTh>№</MudTh>
+        <MudTh>Инициатор</MudTh>
+        <MudTh>Дата</MudTh>
+        <MudTh>Этап</MudTh>
+        <MudTh>Позиций</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="№">@context.Id</MudTd>
+        <MudTd DataLabel="Инициатор">@context.InitiatorName</MudTd>
+        <MudTd DataLabel="Дата">@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</MudTd>
+        <MudTd DataLabel="Этап">@(context.CurrentStageName ?? "—")</MudTd>
+        <MudTd DataLabel="Позиций">@context.Items.Count</MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Нет заявок, ожидающих вашего решения</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>Загрузка...</MudText>
+    </LoadingContent>
+</MudTable>
+
+@code {
+    private List<TmcRequestDto> _items = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _items = await RequestService.GetPendingAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task OnRowClick(TableRowClickEventArgs<TmcRequestDto> args)
+    {
+        var request = args.Item;
+        if (request is null) return;
+
+        var parameters = new DialogParameters<ApprovalDialog>
+        {
+            { x => x.Request, request }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ApprovalDialog>(
+            $"Заявка №{request.Id}", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
+            await Load();
+        }
+    }
+}

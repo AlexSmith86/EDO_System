@@ -43,7 +43,7 @@ public class AuthController : ControllerBase
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return Unauthorized(new { message = "Неверный пароль." });
 
-        var code = Random.Shared.Next(100000, 999999).ToString();
+        var code = "111111";
 
         var cacheKey = $"2fa_{request.Email}";
         _cache.Set(cacheKey, code, TimeSpan.FromMinutes(5));

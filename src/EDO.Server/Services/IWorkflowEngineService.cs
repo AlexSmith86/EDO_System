@@ -23,4 +23,7 @@ public class WorkflowDecisionResult
 public interface IWorkflowEngineService
 {
     Task<WorkflowDecisionResult> ProcessDecisionAsync(WorkflowDecisionRequest request);
+
+    /// <summary>Проверяет, может ли пользователь действовать на текущем этапе заявки</summary>
+    Task<bool> CanUserActAsync(int userId, int stageId, int documentId);
 }

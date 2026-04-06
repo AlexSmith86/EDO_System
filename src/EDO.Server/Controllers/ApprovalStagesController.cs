@@ -29,8 +29,9 @@ public class ApprovalStagesController : ControllerBase
             {
                 Id = s.Id,
                 Name = s.Name,
+                RequiredPosition = s.RequiredPosition,
                 RoleId = s.RoleId,
-                RoleName = s.Role.Name,
+                RoleName = s.Role != null ? s.Role.Name : null,
                 OrderSequence = s.OrderSequence
             })
             .ToListAsync();
@@ -47,6 +48,7 @@ public class ApprovalStagesController : ControllerBase
         var entity = new ApprovalStage
         {
             Name = dto.Name,
+            RequiredPosition = dto.RequiredPosition ?? "",
             RoleId = dto.RoleId,
             OrderSequence = dto.OrderSequence
         };
@@ -54,14 +56,12 @@ public class ApprovalStagesController : ControllerBase
         _db.ApprovalStages.Add(entity);
         await _db.SaveChangesAsync();
 
-        await _db.Entry(entity).Reference(s => s.Role).LoadAsync();
-
         return Created($"/api/approvalstages/{entity.Id}", new ApprovalStageDto
         {
             Id = entity.Id,
             Name = entity.Name,
+            RequiredPosition = entity.RequiredPosition,
             RoleId = entity.RoleId,
-            RoleName = entity.Role.Name,
             OrderSequence = entity.OrderSequence
         });
     }
@@ -69,7 +69,7 @@ public class ApprovalStagesController : ControllerBase
     [HttpPut("{id}")]
     public async Task<ActionResult<ApprovalStageDto>> Update(int id, [FromBody] UpdateApprovalStageDto dto)
     {
-        var entity = await _db.ApprovalStages.Include(s => s.Role).FirstOrDefaultAsync(s => s.Id == id);
+        var entity = await _db.ApprovalStages.FirstOrDefaultAsync(s => s.Id == id);
         if (entity is null)
             return NotFound(new { message = "Этап не найден." });
 
@@ -77,19 +77,18 @@ public class ApprovalStagesController : ControllerBase
             return Conflict(new { message = $"Этап с порядковым номером {dto.OrderSequence} уже существует." });
 
         entity.Name = dto.Name;
+        entity.RequiredPosition = dto.RequiredPosition ?? "";
         entity.RoleId = dto.RoleId;
         entity.OrderSequence = dto.OrderSequence;
 
         await _db.SaveChangesAsync();
 
-        await _db.Entry(entity).Reference(s => s.Role).LoadAsync();
-
         return Ok(new ApprovalStageDto
         {
             Id = entity.Id,
             Name = entity.Name,
+            RequiredPosition = entity.RequiredPosition,
             RoleId = entity.RoleId,
-            RoleName = entity.Role.Name,
             OrderSequence = entity.OrderSequence
         });
     }

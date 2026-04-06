@@ -5,7 +5,9 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h5" Class="mb-4">Управление пользователями</MudText>
+<MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
+    <MudText Typo="Typo.h5" Style="font-weight: 700;">Управление пользователями</MudText>
+</MudPaper>
 
 <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.PersonAdd"
            OnClick="@OpenCreateDialog" Class="mb-4" Style="text-transform: none;">

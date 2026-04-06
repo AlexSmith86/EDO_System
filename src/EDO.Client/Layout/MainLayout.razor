@@ -1,6 +1,8 @@
 @inherits LayoutComponentBase
 @using EDO.Client.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @inject JwtAuthenticationStateProvider AuthProvider
+@inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 
 <MudThemeProvider @bind-IsDarkMode="_isDarkMode" Theme="_theme" />
@@ -11,8 +13,8 @@
 <MudLayout>
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
-                       OnClick="@ToggleDrawer" />
-        <MudText Typo="Typo.h6">ЭДО</MudText>
+                       OnClick="@DrawerToggle" />
+        <MudText Typo="Typo.h6">ЭДО ГКТСМ</MudText>
         <MudSpacer />
         <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="@Logout"
                    StartIcon="@Icons.Material.Filled.Logout"
@@ -20,20 +22,41 @@
             Выйти
         </MudButton>
     </MudAppBar>
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
-        <MudDrawerHeader>
-            <MudText Typo="Typo.h6">Меню</MudText>
-        </MudDrawerHeader>
-        <NavMenu />
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" Variant="@DrawerVariant.Responsive">
+        <div class="drawer-content">
+            @if (!string.IsNullOrEmpty(_userName))
+            {
+                <div class="d-flex align-center pa-3 user-info">
+                    <MudAvatar Color="Color.Warning" Size="Size.Medium" Class="mr-3"
+                               Style="font-size: 1.1rem; font-weight: 700;">
+                        @_userName[0]
+                    </MudAvatar>
+                    <div style="line-height: 1.3; overflow: hidden;">
+                        <MudText Typo="Typo.body2" Style="font-weight: 600;">@_userName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_userPosition</MudText>
+                    </div>
+                </div>
+                <MudDivider />
+            }
+            <div class="drawer-menu">
+                <NavMenu />
+            </div>
+        </div>
     </MudDrawer>
-    <MudMainContent Class="pa-4">
-        @Body
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-4">
+            @Body
+        </MudContainer>
     </MudMainContent>
 </MudLayout>
 
 @code {
     private bool _drawerOpen = true;
     private bool _isDarkMode = true;
+    private string? _userName;
+    private string? _userPosition;
 
     private readonly MudTheme _theme = new()
     {
@@ -46,7 +69,18 @@
         }
     };
 
-    private void ToggleDrawer()
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _userName = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+            _userPosition = user.FindFirst("position")?.Value;
+        }
+    }
+
+    private void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
     }

@@ -3,16 +3,19 @@
 @attribute [Authorize]
 @using EDO.Client.Services
 @inject ITmcRequestService RequestService
-@inject ITmcService TmcService
+@inject ICategoryService CategoryService
+@inject IUserService UserService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h5" Class="mb-2">@(_isEdit ? "Редактирование заявки" : "Новая заявка на ТМЦ")</MudText>
-<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-    Заполните табличную часть и сохраните заявку
-</MudText>
+<MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
+    <MudText Typo="Typo.h5" Style="font-weight: 700;">@(_isEdit ? "Редактирование заявки" : "Новая заявка на ТМЦ")</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">
+        Заполните шапку и табличную часть заявки
+    </MudText>
+</MudPaper>
 
-@if (_loadingTmcs)
+@if (_loading)
 {
     <MudProgressLinear Indeterminate="true" Color="Color.Warning" />
 }
@@ -20,40 +23,103 @@ else
 {
     <MudCard Elevation="2" Class="pa-4 mb-4">
         <MudCardContent>
+            <MudTextField @bind-Value="_projectName" Label="Проект" Variant="Variant.Outlined"
+                          Class="mb-4" />
+
             <MudText Typo="Typo.subtitle1" Class="mb-3" Style="font-weight: 600;">Позиции заявки</MudText>
 
-            <MudTable Items="@_items" Hover="true" Dense="true" Elevation="0">
-                <HeaderContent>
-                    <MudTh>ТМЦ</MudTh>
-                    <MudTh Style="width: 180px;">Количество</MudTh>
-                    <MudTh Style="width: 60px;"></MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd>
-                        <MudAutocomplete T="TmcDto" @bind-Value="context.SelectedTmc"
-                                         SearchFunc="@SearchTmc"
-                                         ToStringFunc="@(t => t?.Name ?? string.Empty)"
-                                         Label="Выберите ТМЦ" Variant="Variant.Outlined"
-                                         Dense="true" Margin="Margin.Dense" />
-                    </MudTd>
-                    <MudTd>
-                        <MudNumericField @bind-Value="context.Quantity" Label="Кол-во"
-                                         Variant="Variant.Outlined" Min="0.0001m"
-                                         Margin="Margin.Dense" />
-                    </MudTd>
-                    <MudTd>
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                       Color="Color.Error" OnClick="@(() => RemoveItem(context))" />
-                    </MudTd>
-                </RowTemplate>
-                <NoRecordsContent>
-                    <MudText Color="Color.Secondary">Добавьте позиции в заявку</MudText>
-                </NoRecordsContent>
-            </MudTable>
+            @foreach (var item in _items)
+            {
+                var idx = _items.IndexOf(item);
+                <MudCard Elevation="0" Class="pa-3 mb-3" Style="border: 1px solid #333;">
+                    <MudGrid>
+                        <MudItem xs="12" md="5">
+                            <MudSelect T="TmcGroupDto" Value="item.SelectedGroup"
+                                       Label="Группа ДДС" Variant="Variant.Outlined"
+                                       Dense="true" Margin="Margin.Dense"
+                                       ToStringFunc="@(g => g?.DisplayName ?? string.Empty)"
+                                       ValueChanged="@(g => OnGroupChanged(item, g))">
+                                @foreach (var g in _groups)
+                                {
+                                    <MudSelectItem T="TmcGroupDto" Value="@g">@g.DisplayName</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="11" md="6">
+                            <MudSelect T="TmcSubgroupDto" @bind-Value="item.SelectedSubgroup"
+                                       Label="Подгруппа ДДС" Variant="Variant.Outlined"
+                                       Dense="true" Margin="Margin.Dense"
+                                       Disabled="@(!item.Subgroups.Any(s => !s.IsHeader))"
+                                       ToStringFunc="@(s => s?.DisplayName ?? string.Empty)">
+                                @foreach (var s in item.Subgroups)
+                                {
+                                    @if (s.IsHeader)
+                                    {
+                                        <MudSelectItem T="TmcSubgroupDto" Value="@s" Disabled="true">
+                                            <MudText Typo="Typo.caption" Style="font-weight: 700; color: #FFD700; text-transform: uppercase;">
+                                                @s.Name
+                                            </MudText>
+                                        </MudSelectItem>
+                                    }
+                                    else
+                                    {
+                                        <MudSelectItem T="TmcSubgroupDto" Value="@s">@s.DisplayName</MudSelectItem>
+                                    }
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="1" Class="d-flex align-center justify-center">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error" OnClick="@(() => RemoveItem(item))" />
+                        </MudItem>
+                        <MudItem xs="12" md="5">
+                            <MudAutocomplete T="string" Value="item.InitiatorName"
+                                             Label="Инициатор (ФИО)" Variant="Variant.Outlined"
+                                             Dense="true" Margin="Margin.Dense"
+                                             SearchFunc="@SearchUsers"
+                                             CoerceValue="false"
+                                             ValueChanged="@(v => OnInitiatorChanged(item, v))" />
+                        </MudItem>
+                        <MudItem xs="12" md="5">
+                            <MudTextField @bind-Value="item.InitiatorPosition" Label="Должность инициатора"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="5">
+                            <MudTextField @bind-Value="item.Name" Label="Наименование ТМЦ"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="4" md="2">
+                            <MudNumericField @bind-Value="item.Quantity" Label="Кол-во"
+                                             Variant="Variant.Outlined" Min="0.0001m"
+                                             Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="4" md="2">
+                            <MudAutocomplete T="string" @bind-Value="item.Unit"
+                                             Label="Ед. изм." Variant="Variant.Outlined"
+                                             Dense="true" Margin="Margin.Dense"
+                                             SearchFunc="@SearchUnits"
+                                             CoerceValue="false" />
+                        </MudItem>
+                        <MudItem xs="4" md="3">
+                            <MudDatePicker @bind-Date="item.PlannedDeliveryDate" Label="Срок поставки"
+                                           Variant="Variant.Outlined" Margin="Margin.Dense"
+                                           DateFormat="dd.MM.yyyy" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="item.InvoiceLink" Label="Ссылка на счёт/КП"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="item.Comment" Label="Комментарий"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+                </MudCard>
+            }
 
             <MudButton Variant="Variant.Outlined" Color="Color.Warning"
                        StartIcon="@Icons.Material.Filled.AddCircleOutline"
-                       OnClick="@AddItem" Class="mt-3" Style="text-transform: none;">
+                       OnClick="@AddItem" Class="mt-2" Style="text-transform: none;">
                 Добавить строку
             </MudButton>
         </MudCardContent>
@@ -80,16 +146,23 @@ else
     [Parameter] public int? Id { get; set; }
 
     private List<RequestItemRow> _items = new();
-    private List<TmcDto> _allTmcs = new();
-    private bool _loadingTmcs = true;
+    private List<TmcGroupDto> _groups = new();
+    private List<UserDto> _users = new();
+    private string? _projectName;
+    private bool _loading = true;
     private bool _saving;
     private bool _isEdit;
+
+    private static readonly string[] _unitOptions = {
+        "шт.", "м3", "м2", "м.п.", "т.", "кг.", "уп.", "бал.", "рул.", "компл.", "ч/час.", "маш-см.", "усл. ед."
+    };
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _allTmcs = await TmcService.GetAllAsync();
+            _groups = await CategoryService.GetGroupsAsync();
+            _users = await UserService.GetAllAsync();
 
             if (Id.HasValue)
             {
@@ -97,16 +170,39 @@ else
                 var existing = await RequestService.GetByIdAsync(Id.Value);
                 if (existing is not null)
                 {
-                    _items = existing.Items.Select(i => new RequestItemRow
+                    _projectName = existing.ProjectName;
+                    foreach (var i in existing.Items)
                     {
-                        SelectedTmc = _allTmcs.FirstOrDefault(t => t.Id == i.TmcId),
-                        Quantity = i.Quantity
-                    }).ToList();
+                        var row = new RequestItemRow
+                        {
+                            Name = i.Name,
+                            Quantity = i.Quantity,
+                            Unit = i.Unit,
+                            PlannedDeliveryDate = i.PlannedDeliveryDate,
+                            InvoiceLink = i.InvoiceLink,
+                            Comment = i.Comment,
+                            InitiatorName = i.InitiatorName,
+                            InitiatorPosition = i.InitiatorPosition
+                        };
+
+                        if (i.GroupId.HasValue)
+                        {
+                            row.SelectedGroup = _groups.FirstOrDefault(g => g.Id == i.GroupId.Value);
+                            if (row.SelectedGroup != null)
+                            {
+                                row.Subgroups = await CategoryService.GetSubgroupsAsync(row.SelectedGroup.Id);
+                                if (i.SubgroupId.HasValue)
+                                    row.SelectedSubgroup = row.Subgroups.FirstOrDefault(s => s.Id == i.SubgroupId.Value);
+                            }
+                        }
+
+                        _items.Add(row);
+                    }
                 }
             }
         }
         catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
-        finally { _loadingTmcs = false; }
+        finally { _loading = false; }
     }
 
     private void AddItem()
@@ -119,26 +215,26 @@ else
         _items.Remove(item);
     }
 
-    private Task<IEnumerable<TmcDto>> SearchTmc(string? value, CancellationToken ct)
+    private async Task OnGroupChanged(RequestItemRow item, TmcGroupDto? group)
     {
-        var result = string.IsNullOrWhiteSpace(value)
-            ? _allTmcs
-            : _allTmcs.Where(t => t.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult(result);
+        item.SelectedGroup = group;
+        item.SelectedSubgroup = null;
+        item.Subgroups = group != null
+            ? await CategoryService.GetSubgroupsAsync(group.Id)
+            : new();
     }
 
     private async Task Save()
     {
-        // Валидация
         if (_items.Count == 0)
         {
             Snackbar.Add("Добавьте хотя бы одну позицию", Severity.Warning);
             return;
         }
 
-        if (_items.Any(i => i.SelectedTmc is null))
+        if (_items.Any(i => string.IsNullOrWhiteSpace(i.Name)))
         {
-            Snackbar.Add("Выберите ТМЦ для всех позиций", Severity.Warning);
+            Snackbar.Add("Заполните наименование для всех позиций", Severity.Warning);
             return;
         }
 
@@ -153,18 +249,34 @@ else
         {
             var dtoItems = _items.Select(i => new CreateTmcRequestItemDto
             {
-                TmcId = i.SelectedTmc!.Id,
-                Quantity = i.Quantity
+                GroupId = i.SelectedGroup?.Id,
+                SubgroupId = i.SelectedSubgroup?.Id,
+                Name = i.Name,
+                Quantity = i.Quantity,
+                Unit = i.Unit,
+                PlannedDeliveryDate = i.PlannedDeliveryDate,
+                InvoiceLink = i.InvoiceLink,
+                Comment = i.Comment,
+                InitiatorName = i.InitiatorName,
+                InitiatorPosition = i.InitiatorPosition
             }).ToList();
 
             if (_isEdit && Id.HasValue)
             {
-                await RequestService.UpdateAsync(Id.Value, new UpdateTmcRequestDto { Items = dtoItems });
+                await RequestService.UpdateAsync(Id.Value, new UpdateTmcRequestDto
+                {
+                    ProjectName = _projectName,
+                    Items = dtoItems
+                });
                 Snackbar.Add("Заявка обновлена", Severity.Success);
             }
             else
             {
-                await RequestService.CreateAsync(new CreateTmcRequestDto { Items = dtoItems });
+                await RequestService.CreateAsync(new CreateTmcRequestDto
+                {
+                    ProjectName = _projectName,
+                    Items = dtoItems
+                });
                 Snackbar.Add("Заявка создана", Severity.Success);
             }
 
@@ -176,9 +288,45 @@ else
 
     private void GoBack() => Navigation.NavigateTo("/documents/tmcrequests");
 
+    private Task<IEnumerable<string>> SearchUsers(string value, CancellationToken token)
+    {
+        var result = string.IsNullOrEmpty(value)
+            ? _users.Select(u => $"{u.LastName} {u.FirstName} {u.MiddleName}".Trim())
+            : _users
+                .Select(u => $"{u.LastName} {u.FirstName} {u.MiddleName}".Trim())
+                .Where(n => n.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
+
+    private void OnInitiatorChanged(RequestItemRow item, string? value)
+    {
+        item.InitiatorName = value;
+        var user = _users.FirstOrDefault(u =>
+            $"{u.LastName} {u.FirstName} {u.MiddleName}".Trim() == value);
+        if (user != null)
+            item.InitiatorPosition = user.Position;
+    }
+
+    private Task<IEnumerable<string>> SearchUnits(string value, CancellationToken token)
+    {
+        var result = string.IsNullOrEmpty(value)
+            ? _unitOptions.AsEnumerable()
+            : _unitOptions.Where(u => u.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
+    }
+
     private class RequestItemRow
     {
-        public TmcDto? SelectedTmc { get; set; }
+        public TmcGroupDto? SelectedGroup { get; set; }
+        public TmcSubgroupDto? SelectedSubgroup { get; set; }
+        public List<TmcSubgroupDto> Subgroups { get; set; } = new();
+        public string Name { get; set; } = string.Empty;
         public decimal Quantity { get; set; } = 1;
+        public string? Unit { get; set; }
+        public DateTime? PlannedDeliveryDate { get; set; }
+        public string? InvoiceLink { get; set; }
+        public string? Comment { get; set; }
+        public string? InitiatorName { get; set; }
+        public string? InitiatorPosition { get; set; }
     }
 }

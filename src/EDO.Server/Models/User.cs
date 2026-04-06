@@ -21,6 +21,9 @@ public class User
 
     public Role Role { get; set; } = null!;
 
+    /// <summary>Контактный телефон</summary>
+    public string? Phone { get; set; }
+
     /// <summary>Telegram ID для уведомлений</summary>
     public string? TelegramId { get; set; }
 

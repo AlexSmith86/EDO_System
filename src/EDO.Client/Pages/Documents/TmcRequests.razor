@@ -5,39 +5,92 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h5" Class="mb-2">Заявки на ТМЦ</MudText>
-<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-    Мои заявки на товарно-материальные ценности
-</MudText>
+<MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
+    <MudText Typo="Typo.h5" Style="font-weight: 700;">Электронный реестр — МТО</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">
+        Мои заявки на товарно-материальные ценности
+    </MudText>
+</MudPaper>
 
-<MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="@(() => Navigation.NavigateTo("/documents/tmcrequests/create"))"
-           Class="mb-4" Style="text-transform: none;">
-    Создать заявку
-</MudButton>
+<MudGrid Class="mb-4">
+    <MudItem xs="12" md="4">
+        <MudTextField @bind-Value="_searchText" Label="Поиск по наименованию"
+                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" />
+    </MudItem>
+    <MudItem xs="12" md="3">
+        <MudSelect T="string" @bind-Value="_statusFilter" Label="Фильтр по статусу"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+            <MudSelectItem T="string" Value="@("Draft")">Черновик</MudSelectItem>
+            <MudSelectItem T="string" Value="@("InApproval")">На согласовании</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Rework")">На доработке</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Completed")">Выполнено</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Approved")">Согласована</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Rejected")">Отклонена</MudSelectItem>
+        </MudSelect>
+    </MudItem>
+    <MudItem xs="12" md="5" Class="d-flex align-center">
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => Navigation.NavigateTo("/documents/tmcrequests/create"))"
+                   Style="text-transform: none;">
+            Создать заявку
+        </MudButton>
+    </MudItem>
+</MudGrid>
 
-<MudTable Items="@_items" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
+<MudTable Items="@FilteredItems" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
           Dense="true" Breakpoint="Breakpoint.Sm">
     <HeaderContent>
-        <MudTh>№</MudTh>
         <MudTh>Дата</MudTh>
+        <MudTh>Проект</MudTh>
+        <MudTh>Инициатор</MudTh>
+        <MudTh>Группа ДДС</MudTh>
+        <MudTh>Наименование ТМЦ</MudTh>
+        <MudTh>Кол-во</MudTh>
         <MudTh>Статус</MudTh>
-        <MudTh>Этап</MudTh>
-        <MudTh>Позиций</MudTh>
         <MudTh>Действия</MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="№">@context.Id</MudTd>
-        <MudTd DataLabel="Дата">@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</MudTd>
+        <MudTd DataLabel="Дата">@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudTd>
+        <MudTd DataLabel="Проект">@(context.ProjectName ?? "—")</MudTd>
+        <MudTd DataLabel="Инициатор">@(context.InitiatorName ?? "Неизвестный")</MudTd>
+        <MudTd DataLabel="Группа">
+            @if (context.Items?.Any() == true)
+            {
+                @(context.Items.First().GroupName ?? "—")
+                @if (context.Items.Count > 1)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary"> (+@(context.Items.Count - 1))</MudText>
+                }
+            }
+            else
+            {
+                @:—
+            }
+        </MudTd>
+        <MudTd DataLabel="Наименование">
+            @if (context.Items?.Any() == true)
+            {
+                @(context.Items.First().Name ?? "—")
+                @if (context.Items.Count > 1)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary"> (+@(context.Items.Count - 1))</MudText>
+                }
+            }
+            else
+            {
+                @:—
+            }
+        </MudTd>
+        <MudTd DataLabel="Кол-во">@(context.Items?.Count ?? 0) поз.</MudTd>
         <MudTd DataLabel="Статус">
             <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)">
                 @GetStatusText(context.Status)
             </MudChip>
         </MudTd>
-        <MudTd DataLabel="Этап">@(context.CurrentStageName ?? "—")</MudTd>
-        <MudTd DataLabel="Позиций">@context.Items.Count</MudTd>
         <MudTd DataLabel="Действия">
-            @if (context.Status == "Draft")
+            @if (context.Status == "Draft" || context.Status == "Rework")
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => Navigation.NavigateTo($"/documents/tmcrequests/edit/{context.Id}"))" />
@@ -57,6 +110,25 @@
 @code {
     private List<TmcRequestDto> _items = new();
     private bool _loading = true;
+    private string? _searchText;
+    private string? _statusFilter;
+
+    private IEnumerable<TmcRequestDto> FilteredItems
+    {
+        get
+        {
+            var result = _items.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_statusFilter))
+                result = result.Where(r => r.Status == _statusFilter);
+
+            if (!string.IsNullOrWhiteSpace(_searchText))
+                result = result.Where(r => r.Items?.Any(i =>
+                    (i.Name ?? "").Contains(_searchText, StringComparison.OrdinalIgnoreCase)) == true);
+
+            return result;
+        }
+    }
 
     protected override async Task OnInitializedAsync() => await Load();
 
@@ -83,6 +155,8 @@
     {
         "Draft" => Color.Default,
         "InApproval" => Color.Warning,
+        "Rework" => Color.Secondary,
+        "Completed" => Color.Success,
         "Approved" => Color.Success,
         "Rejected" => Color.Error,
         _ => Color.Default
@@ -92,6 +166,8 @@
     {
         "Draft" => "Черновик",
         "InApproval" => "На согласовании",
+        "Rework" => "На доработке",
+        "Completed" => "Выполнено",
         "Approved" => "Согласована",
         "Rejected" => "Отклонена",
         _ => status

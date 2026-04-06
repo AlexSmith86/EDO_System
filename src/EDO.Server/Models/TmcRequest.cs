@@ -10,10 +10,13 @@ public class TmcRequest
 
     public User InitiatorUser { get; set; } = null!;
 
+    /// <summary>Проект</summary>
+    public string? ProjectName { get; set; }
+
     /// <summary>Статус заявки</summary>
     public TmcRequestStatus Status { get; set; } = TmcRequestStatus.Draft;
 
-    /// <summary>Текущий этап согласования (null для Draft)</summary>
+    /// <summary>Текущий этап согласования (null для Draft/Completed)</summary>
     public int? CurrentStageId { get; set; }
 
     public ApprovalStage? CurrentStage { get; set; }
@@ -27,8 +30,16 @@ public class TmcRequest
 
 public enum TmcRequestStatus
 {
+    /// <summary>Черновик</summary>
     Draft,
+    /// <summary>На согласовании</summary>
     InApproval,
+    /// <summary>На доработке (отклонено, возвращено инициатору)</summary>
+    Rework,
+    /// <summary>Выполнено / Закрыто</summary>
+    Completed,
+    /// <summary>Согласовано (legacy)</summary>
     Approved,
+    /// <summary>Отклонено (legacy)</summary>
     Rejected
 }

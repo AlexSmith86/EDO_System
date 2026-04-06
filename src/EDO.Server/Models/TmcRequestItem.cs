@@ -10,11 +10,37 @@ public class TmcRequestItem
 
     public TmcRequest TmcRequest { get; set; } = null!;
 
-    /// <summary>ТМЦ</summary>
-    public int TmcId { get; set; }
+    /// <summary>Группа ГКТСМ</summary>
+    public int? GroupId { get; set; }
 
-    public Tmc Tmc { get; set; } = null!;
+    public TmcGroup? Group { get; set; }
+
+    /// <summary>Подгруппа ГКТСМ</summary>
+    public int? SubgroupId { get; set; }
+
+    public TmcSubgroup? Subgroup { get; set; }
+
+    /// <summary>Наименование ТМЦ (детальное описание)</summary>
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>Количество</summary>
     public decimal Quantity { get; set; }
+
+    /// <summary>Единица измерения</summary>
+    public string? Unit { get; set; }
+
+    /// <summary>Плановый срок поставки ТМЦ</summary>
+    public DateTime? PlannedDeliveryDate { get; set; }
+
+    /// <summary>Ссылка на счёт/КП</summary>
+    public string? InvoiceLink { get; set; }
+
+    /// <summary>Комментарий</summary>
+    public string? Comment { get; set; }
+
+    /// <summary>ФИО инициатора позиции</summary>
+    public string? InitiatorName { get; set; }
+
+    /// <summary>Должность инициатора позиции</summary>
+    public string? InitiatorPosition { get; set; }
 }

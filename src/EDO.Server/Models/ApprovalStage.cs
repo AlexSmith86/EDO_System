@@ -8,11 +8,15 @@ public class ApprovalStage
     /// <summary>Название этапа</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Роль, которая должна согласовать на этом этапе</summary>
-    public int RoleId { get; set; }
+    /// <summary>Требуемая должность (Position) для согласования.
+    /// "Инициатор" — особое значение: проверяется по InitiatorUserId заявки.</summary>
+    public string RequiredPosition { get; set; } = string.Empty;
 
-    public Role Role { get; set; } = null!;
-
-    /// <summary>Порядковый номер этапа в цепочке</summary>
+    /// <summary>Порядковый номер этапа в цепочке (0-9)</summary>
     public int OrderSequence { get; set; }
+
+    /// <summary>Устаревшее поле, не используется в маршрутизации</summary>
+    public int? RoleId { get; set; }
+
+    public Role? Role { get; set; }
 }

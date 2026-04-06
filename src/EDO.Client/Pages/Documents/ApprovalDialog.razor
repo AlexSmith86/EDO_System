@@ -1,0 +1,100 @@
+@using EDO.Client.Services
+@inject ITmcRequestService RequestService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="6">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Инициатор</MudText>
+                <MudText Typo="Typo.body1">@Request.InitiatorName</MudText>
+            </MudItem>
+            <MudItem xs="6">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Дата создания</MudText>
+                <MudText Typo="Typo.body1">@Request.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</MudText>
+            </MudItem>
+            <MudItem xs="6">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Проект</MudText>
+                <MudText Typo="Typo.body1">@(Request.ProjectName ?? "—")</MudText>
+            </MudItem>
+            <MudItem xs="6">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Текущий этап</MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning">@(Request.CurrentStageName ?? "На согласовании")</MudChip>
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2" Style="font-weight: 600;">Позиции заявки</MudText>
+
+        <MudTable Items="@Request.Items" Dense="true" Hover="true" Elevation="0" Striped="true">
+            <HeaderContent>
+                <MudTh>№</MudTh>
+                <MudTh>Группа</MudTh>
+                <MudTh>Наименование</MudTh>
+                <MudTh>Кол-во</MudTh>
+                <MudTh>Ед.</MudTh>
+                <MudTh>Срок</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@(Request.Items.IndexOf(context) + 1)</MudTd>
+                <MudTd>@(context.GroupName ?? "—")</MudTd>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@context.Quantity</MudTd>
+                <MudTd>@(context.Unit ?? "—")</MudTd>
+                <MudTd>@(context.PlannedDeliveryDate?.ToString("dd.MM.yyyy") ?? "—")</MudTd>
+            </RowTemplate>
+        </MudTable>
+
+        <MudTextField @bind-Value="_comment" Label="Комментарий" Variant="Variant.Outlined"
+                      Lines="3" Class="mt-4"
+                      HelperText="Обязательно при отклонении" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none;">Отмена</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(() => Submit("Rejected"))"
+                   Disabled="@_processing" StartIcon="@Icons.Material.Filled.Close"
+                   Style="text-transform: none;">
+            Отклонить
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => Submit("Approved"))"
+                   Disabled="@_processing" StartIcon="@Icons.Material.Filled.Check"
+                   Style="text-transform: none;">
+            Согласовать
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public TmcRequestDto Request { get; set; } = null!;
+
+    private string? _comment;
+    private bool _processing;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit(string decision)
+    {
+        if (decision == "Rejected" && string.IsNullOrWhiteSpace(_comment))
+        {
+            Snackbar.Add("Укажите причину отклонения", Severity.Warning);
+            return;
+        }
+
+        _processing = true;
+        try
+        {
+            await RequestService.SubmitDecisionAsync(Request.Id, new SubmitDecisionDto
+            {
+                Decision = decision,
+                Comment = _comment
+            });
+
+            var msg = decision == "Approved" ? "Заявка согласована" : "Заявка отклонена";
+            Snackbar.Add(msg, decision == "Approved" ? Severity.Success : Severity.Info);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _processing = false; }
+    }
+}

@@ -9,7 +9,26 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+// Явный BackendUrl в appsettings / переменных окружения; иначе — безопасный дефолт для dev:
+// страница на HTTPS не может вызывать API по HTTP (mixed content), поэтому подбираем схему по BaseAddress клиента.
+var configured = builder.Configuration["BackendUrl"];
+var clientScheme = new Uri(builder.HostEnvironment.BaseAddress).Scheme;
+var backendUrl = string.IsNullOrWhiteSpace(configured)
+    ? (string.Equals(clientScheme, "https", StringComparison.OrdinalIgnoreCase)
+        ? "https://localhost:7063"
+        : "http://localhost:5238")
+    : configured.Trim();
+
+// Browser blocks HTTPS -> HTTP API calls (mixed content).
+// If UI runs on HTTPS, force HTTPS backend endpoint for local development.
+if (string.Equals(clientScheme, "https", StringComparison.OrdinalIgnoreCase) &&
+    Uri.TryCreate(backendUrl, UriKind.Absolute, out var configuredUri) &&
+    string.Equals(configuredUri.Scheme, "http", StringComparison.OrdinalIgnoreCase))
+{
+    backendUrl = "https://localhost:7063";
+}
+
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(backendUrl) });
 builder.Services.AddMudServices();
 
 builder.Services.AddScoped<LocalStorageService>();
@@ -21,7 +40,7 @@ builder.Services.AddAuthorizationCore();
 // HTTP-клиент с авторизацией для API-сервисов
 builder.Services.AddScoped<AuthHttpHandler>();
 builder.Services.AddHttpClient("EDO.API", client =>
-    client.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress))
+    client.BaseAddress = new Uri(backendUrl))
     .AddHttpMessageHandler<AuthHttpHandler>();
 
 builder.Services.AddScoped<IRoleService>(sp =>
@@ -38,5 +57,9 @@ builder.Services.AddScoped<IApprovalStageService>(sp =>
     new ApprovalStageService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
 builder.Services.AddScoped<ITmcRequestService>(sp =>
     new TmcRequestService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+builder.Services.AddScoped<ICategoryService>(sp =>
+    new CategoryService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+builder.Services.AddScoped<IDashboardService>(sp =>
+    new DashboardService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
 
 await builder.Build().RunAsync();
