@@ -9,24 +9,12 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Явный BackendUrl в appsettings / переменных окружения; иначе — безопасный дефолт для dev:
-// страница на HTTPS не может вызывать API по HTTP (mixed content), поэтому подбираем схему по BaseAddress клиента.
+// In production (Railway), client is served from the same origin as the API.
+// In dev, BackendUrl points to the separate API server.
 var configured = builder.Configuration["BackendUrl"];
-var clientScheme = new Uri(builder.HostEnvironment.BaseAddress).Scheme;
 var backendUrl = string.IsNullOrWhiteSpace(configured)
-    ? (string.Equals(clientScheme, "https", StringComparison.OrdinalIgnoreCase)
-        ? "https://localhost:7063"
-        : "http://localhost:5238")
+    ? builder.HostEnvironment.BaseAddress
     : configured.Trim();
-
-// Browser blocks HTTPS -> HTTP API calls (mixed content).
-// If UI runs on HTTPS, force HTTPS backend endpoint for local development.
-if (string.Equals(clientScheme, "https", StringComparison.OrdinalIgnoreCase) &&
-    Uri.TryCreate(backendUrl, UriKind.Absolute, out var configuredUri) &&
-    string.Equals(configuredUri.Scheme, "http", StringComparison.OrdinalIgnoreCase))
-{
-    backendUrl = "https://localhost:7063";
-}
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(backendUrl) });
 builder.Services.AddMudServices();

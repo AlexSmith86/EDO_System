@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -101,8 +101,16 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors();
+
+// Serve Blazor WASM client static files (for production single-container deployment)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Blazor WASM SPA fallback: any non-API route serves index.html
+app.MapFallbackToFile("index.html");
 
 app.Run();
