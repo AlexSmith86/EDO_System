@@ -128,7 +128,7 @@ namespace EDO.Server.Migrations
 
                     b.HasIndex("ExternalId")
                         .IsUnique()
-                        .HasFilter("[ExternalId] IS NOT NULL");
+                        .HasFilter("\"ExternalId\" IS NOT NULL");
 
                     b.ToTable("Contractors");
                 });
@@ -215,7 +215,7 @@ namespace EDO.Server.Migrations
 
                     b.HasIndex("ExternalId")
                         .IsUnique()
-                        .HasFilter("[ExternalId] IS NOT NULL");
+                        .HasFilter("\"ExternalId\" IS NOT NULL");
 
                     b.ToTable("Tmcs");
                 });

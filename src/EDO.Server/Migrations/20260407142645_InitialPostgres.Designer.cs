@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EDO.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260407141134_InitialPostgres")]
+    [Migration("20260407142645_InitialPostgres")]
     partial class InitialPostgres
     {
         /// <inheritdoc />
@@ -131,7 +131,7 @@ namespace EDO.Server.Migrations
 
                     b.HasIndex("ExternalId")
                         .IsUnique()
-                        .HasFilter("[ExternalId] IS NOT NULL");
+                        .HasFilter("\"ExternalId\" IS NOT NULL");
 
                     b.ToTable("Contractors");
                 });
@@ -218,7 +218,7 @@ namespace EDO.Server.Migrations
 
                     b.HasIndex("ExternalId")
                         .IsUnique()
-                        .HasFilter("[ExternalId] IS NOT NULL");
+                        .HasFilter("\"ExternalId\" IS NOT NULL");
 
                     b.ToTable("Tmcs");
                 });

@@ -57,7 +57,7 @@ public class AppDbContext : DbContext
             entity.Property(t => t.Article).HasMaxLength(100);
             entity.Property(t => t.ExternalId).HasMaxLength(100);
             entity.Property(t => t.StockBalance).HasPrecision(18, 4);
-            entity.HasIndex(t => t.ExternalId).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
+            entity.HasIndex(t => t.ExternalId).IsUnique().HasFilter("\"ExternalId\" IS NOT NULL");
         });
 
         modelBuilder.Entity<Contractor>(entity =>
@@ -67,7 +67,7 @@ public class AppDbContext : DbContext
             entity.Property(c => c.Inn).HasMaxLength(12);
             entity.Property(c => c.ExternalId).HasMaxLength(100);
             entity.Property(c => c.ContractorType).HasConversion<string>().HasMaxLength(20);
-            entity.HasIndex(c => c.ExternalId).IsUnique().HasFilter("[ExternalId] IS NOT NULL");
+            entity.HasIndex(c => c.ExternalId).IsUnique().HasFilter("\"ExternalId\" IS NOT NULL");
         });
 
         modelBuilder.Entity<DocumentTemplate>(entity =>

@@ -338,7 +338,7 @@ namespace EDO.Server.Migrations
                 table: "Contractors",
                 column: "ExternalId",
                 unique: true,
-                filter: "[ExternalId] IS NOT NULL");
+                filter: "\"ExternalId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Roles_Name",
@@ -392,7 +392,7 @@ namespace EDO.Server.Migrations
                 table: "Tmcs",
                 column: "ExternalId",
                 unique: true,
-                filter: "[ExternalId] IS NOT NULL");
+                filter: "\"ExternalId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TmcSubgroups_GroupId",
