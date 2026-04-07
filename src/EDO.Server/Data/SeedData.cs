@@ -190,7 +190,7 @@ public static class SeedData
             ("3.02", "Проценты по кредитам", new()),
             ("3.03", "Налоги (кроме НДФЛ и страховых взносов)", new()),
             ("3.04", "Страхование", new()),
-            ("4", "ИНВЕСТИЦИОННЫЕ РАСХОДЫ (КАПИТАЛЬНЫЕ ВЛОЖЕНИЯ)", new()
+            ("4", "Инвестиционные расходы (Капитальные Вложения)", new()
             {
                 ("4.01", "Приобретение основных средств", false),
                 ("4.01.01", "Приобретение новой строительной техники", false),
@@ -205,9 +205,36 @@ public static class SeedData
     /// <summary>Seed 10 этапов маршрута согласования ТМЦ</summary>
     public static void SeedApprovalStages(AppDbContext context)
     {
-        // Если этапы уже есть и с RequiredPosition — не пересоздаём
+        var stages = new (int Order, string Name, string Position, string? Description)[]
+        {
+            (0, "Создание заявки", "Инициатор", "Создание и заполнение заявки на ТМЦ"),
+            (1, "Согласование ПТО", "ПТО",
+                "Проверка вводных данных\nПТО либо отклоняет заявку (возврат инициатору с комментарием), либо согласовывает её дальше в МТО"),
+            (2, "Согласование МТО", "МТО",
+                "Заполнение конкурентного листа\nОпределение победителей тендера по чек-листу\nПроверка склада на наличие ТМЦ из заявки"),
+            (3, "Обработка", "Отдел снабжения",
+                "Обработка заявки и подготовка счёта\nСнабжение не отправляет счёт сразу на оплату, а возвращает его инициатору на проверку"),
+            (4, "Проверка", "Инициатор", "Проверка подготовленного счёта от отдела снабжения"),
+            (5, "Финансовый контроль", "Финансовый отдел", "Проверка финансовых показателей и бюджета"),
+            (6, "Согласование ЗГД", "ЗГД", "Согласование заместителем генерального директора"),
+            (7, "Согласование ГД", "Генеральный директор", "Финальное согласование генеральным директором"),
+            (8, "Согласование", "Административный ресурс", "Административное согласование"),
+            (9, "Замыкание цикла", "МТО", "Финальная проверка и закрытие заявки"),
+        };
+
+        // Если этапы уже есть с RequiredPosition — обновляем Description
         if (context.ApprovalStages.Any(s => s.RequiredPosition != ""))
+        {
+            var existing = context.ApprovalStages.ToList();
+            foreach (var (order, name, position, description) in stages)
+            {
+                var stage = existing.FirstOrDefault(s => s.OrderSequence == order);
+                if (stage != null && stage.Description != description)
+                    stage.Description = description;
+            }
+            context.SaveChanges();
             return;
+        }
 
         // Удаляем старые этапы (без RequiredPosition)
         if (context.ApprovalStages.Any())
@@ -216,26 +243,13 @@ public static class SeedData
             context.SaveChanges();
         }
 
-        var stages = new (int Order, string Name, string Position)[]
-        {
-            (0, "Создание заявки", "Инициатор"),
-            (1, "Согласование ПТО", "ПТО"),
-            (2, "Согласование МТО", "МТО"),
-            (3, "Обработка", "Отдел снабжения"),
-            (4, "Проверка", "Инициатор"),
-            (5, "Финансовый контроль", "Финансовый отдел"),
-            (6, "Согласование ЗГД", "ЗГД"),
-            (7, "Согласование ГД", "Генеральный директор"),
-            (8, "Согласование", "Административный ресурс"),
-            (9, "Замыкание цикла", "МТО"),
-        };
-
-        foreach (var (order, name, position) in stages)
+        foreach (var (order, name, position, description) in stages)
         {
             context.ApprovalStages.Add(new ApprovalStage
             {
                 Name = name,
                 RequiredPosition = position,
+                Description = description,
                 OrderSequence = order,
                 RoleId = null
             });
@@ -271,8 +285,9 @@ public static class SeedData
             ("Мартынюк", "Виталий", "Федорович", "Руководитель проекта", "+7 915 022-34-71", "i.martynyuk@gk-tsm.ru"),
         };
 
-        // Роль "Сотрудник" по умолчанию, если нет — берём первую
-        var defaultRole = context.Roles.FirstOrDefault(r => r.Name == "Сотрудник")
+        // Роль по умолчанию для сотрудников
+        var defaultRole = context.Roles.FirstOrDefault(r => r.Name == "Пользователь")
+                       ?? context.Roles.FirstOrDefault(r => r.Name == "Сотрудник")
                        ?? context.Roles.FirstOrDefault(r => r.Name == "User")
                        ?? context.Roles.First();
 

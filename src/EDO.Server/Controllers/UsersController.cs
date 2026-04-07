@@ -44,7 +44,21 @@ public class UsersController : ControllerBase
         return Ok(users);
     }
 
+    [HttpGet("positions")]
+    public async Task<ActionResult<List<string>>> GetPositions()
+    {
+        var positions = await _db.Users
+            .Where(u => u.IsActive && !string.IsNullOrEmpty(u.Position))
+            .Select(u => u.Position)
+            .Distinct()
+            .OrderBy(p => p)
+            .ToListAsync();
+
+        return Ok(positions);
+    }
+
     [HttpPost]
+    [Authorize(Roles = "Администратор")]
     public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserDto dto)
     {
         if (await _db.Users.AnyAsync(u => u.Email == dto.Email))
@@ -87,6 +101,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Администратор")]
     public async Task<ActionResult<UserDto>> Update(int id, [FromBody] UpdateUserDto dto)
     {
         var user = await _db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == id);

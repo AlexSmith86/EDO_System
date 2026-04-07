@@ -4,6 +4,7 @@
 @inject ITmcService TmcService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
     <MudText Typo="Typo.h5" Style="font-weight: 700;">ТМЦ — Товарно-материальные ценности</MudText>
@@ -14,7 +15,7 @@
     Добавить ТМЦ
 </MudButton>
 
-<MudTable Items="@_items" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
+<MudTable Items="@_items" Hover="true" Striped="false" Loading="@_loading" Elevation="2"
           Dense="true" Breakpoint="Breakpoint.Sm">
     <HeaderContent>
         <MudTh>Наименование</MudTh>
@@ -31,6 +32,11 @@
         <MudTd DataLabel="Действия">
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                            OnClick="@(() => OpenEditDialog(context))" />
+            @if (_isAdmin)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeleteItem(context.Id))" />
+            }
         </MudTd>
     </RowTemplate>
     <NoRecordsContent>
@@ -44,8 +50,14 @@
 @code {
     private List<TmcDto> _items = new();
     private bool _loading = true;
+    private bool _isAdmin;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAdmin = authState.User.IsInRole("Администратор");
+        await Load();
+    }
 
     private async Task Load()
     {
@@ -112,5 +124,22 @@
             }
             catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
         }
+    }
+
+    private async Task DeleteItem(int id)
+    {
+        if (!_isAdmin)
+        {
+            Snackbar.Add("Удаление доступно только администратору", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await TmcService.DeleteAsync(id);
+            Snackbar.Add("ТМЦ удалена", Severity.Success);
+            await Load();
+        }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
     }
 }

@@ -18,6 +18,8 @@ public class AppDbContext : DbContext
     public DbSet<TmcRequestItem> TmcRequestItems => Set<TmcRequestItem>();
     public DbSet<TmcGroup> TmcGroups => Set<TmcGroup>();
     public DbSet<TmcSubgroup> TmcSubgroups => Set<TmcSubgroup>();
+    public DbSet<WorkflowChain> WorkflowChains => Set<WorkflowChain>();
+    public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -123,6 +125,23 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<WorkflowChain>(entity =>
+        {
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Name).HasMaxLength(300).IsRequired();
+        });
+
+        modelBuilder.Entity<WorkflowStep>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.StepName).HasMaxLength(300).IsRequired();
+            entity.Property(s => s.TargetPosition).HasMaxLength(200).IsRequired();
+            entity.HasOne(s => s.WorkflowChain)
+                  .WithMany(c => c.Steps)
+                  .HasForeignKey(s => s.WorkflowChainId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<TmcRequest>(entity =>
         {
             entity.HasKey(r => r.Id);
@@ -135,6 +154,14 @@ public class AppDbContext : DbContext
             entity.HasOne(r => r.CurrentStage)
                   .WithMany()
                   .HasForeignKey(r => r.CurrentStageId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(r => r.WorkflowChain)
+                  .WithMany()
+                  .HasForeignKey(r => r.WorkflowChainId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(r => r.CurrentWorkflowStep)
+                  .WithMany()
+                  .HasForeignKey(r => r.CurrentWorkflowStepId)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 

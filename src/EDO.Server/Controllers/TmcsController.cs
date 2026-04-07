@@ -83,4 +83,17 @@ public class TmcsController : ControllerBase
             StockBalance = entity.StockBalance
         });
     }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Администратор")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await _db.Tmcs.FindAsync(id);
+        if (entity is null)
+            return NotFound(new { message = "ТМЦ не найдена." });
+
+        _db.Tmcs.Remove(entity);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
 }

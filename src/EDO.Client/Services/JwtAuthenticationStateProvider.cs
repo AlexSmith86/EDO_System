@@ -23,8 +23,11 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
             return Anonymous;
 
         var claims = ParseClaimsFromJwt(token);
-        if (claims is null)
+        if (claims is null || IsExpired(claims))
+        {
+            await _localStorage.RemoveItemAsync("authToken");
             return Anonymous;
+        }
 
         var identity = new ClaimsIdentity(claims, "jwt");
         return new AuthenticationState(new ClaimsPrincipal(identity));
@@ -34,6 +37,12 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
     {
         await _localStorage.SetItemAsync("authToken", token);
         var claims = ParseClaimsFromJwt(token);
+        if (claims is null)
+        {
+            await MarkUserAsLoggedOut();
+            return;
+        }
+
         var identity = new ClaimsIdentity(claims, "jwt");
         var user = new ClaimsPrincipal(identity);
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(user)));
@@ -57,5 +66,18 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         {
             return null;
         }
+    }
+
+    private static bool IsExpired(IEnumerable<Claim> claims)
+    {
+        var exp = claims.FirstOrDefault(c => c.Type == "exp")?.Value;
+        if (string.IsNullOrWhiteSpace(exp))
+            return false;
+
+        if (!long.TryParse(exp, out var unix))
+            return false;
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(unix);
+        return expiresAt <= DateTimeOffset.UtcNow;
     }
 }

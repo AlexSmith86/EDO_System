@@ -6,22 +6,25 @@ public class ApprovalStageDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    public int RoleId { get; set; }
-    public string RoleName { get; set; } = string.Empty;
+    public string? RequiredPosition { get; set; }
+    public int? RoleId { get; set; }
+    public string? RoleName { get; set; }
     public int OrderSequence { get; set; }
 }
 
 public class CreateApprovalStageDto
 {
     public string Name { get; set; } = string.Empty;
-    public int RoleId { get; set; }
+    public string? RequiredPosition { get; set; }
+    public int? RoleId { get; set; }
     public int OrderSequence { get; set; }
 }
 
 public class UpdateApprovalStageDto
 {
     public string Name { get; set; } = string.Empty;
-    public int RoleId { get; set; }
+    public string? RequiredPosition { get; set; }
+    public int? RoleId { get; set; }
     public int OrderSequence { get; set; }
 }
 

@@ -78,4 +78,17 @@ public class TemplatesController : ControllerBase
             ProcessType = entity.ProcessType
         });
     }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Администратор")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await _db.DocumentTemplates.FindAsync(id);
+        if (entity is null)
+            return NotFound(new { message = "Шаблон не найден." });
+
+        _db.DocumentTemplates.Remove(entity);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
 }

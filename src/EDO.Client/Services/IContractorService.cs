@@ -32,6 +32,7 @@ public interface IContractorService
     Task<List<ContractorDto>> GetAllAsync();
     Task<ContractorDto?> CreateAsync(CreateContractorDto dto);
     Task<ContractorDto?> UpdateAsync(int id, UpdateContractorDto dto);
+    Task DeleteAsync(int id);
 }
 
 public class ContractorService : IContractorService
@@ -60,5 +61,11 @@ public class ContractorService : IContractorService
         var response = await _http.PutAsJsonAsync($"api/contractors/{id}", dto);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ContractorDto>();
+    }
+
+    public async Task DeleteAsync(int id)
+    {
+        var response = await _http.DeleteAsync($"api/contractors/{id}");
+        response.EnsureSuccessStatusCode();
     }
 }

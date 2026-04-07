@@ -8,11 +8,11 @@
     <DialogContent>
         <MudTextField @bind-Value="Model.Name" Label="Название этапа" Variant="Variant.Outlined"
                       Required="true" Class="mb-3" />
-        <MudSelect @bind-Value="Model.RoleId" Label="Роль (кто согласует)" Variant="Variant.Outlined"
-                   Required="true" Class="mb-3">
+        <MudSelect T="int?" @bind-Value="Model.RoleId" Label="Роль (кто согласует)" Variant="Variant.Outlined"
+                   Class="mb-3" Clearable="true">
             @foreach (var role in _roles)
             {
-                <MudSelectItem Value="@role.Id">@role.Name</MudSelectItem>
+                <MudSelectItem T="int?" Value="@role.Id">@role.Name</MudSelectItem>
             }
         </MudSelect>
         <MudNumericField @bind-Value="Model.OrderSequence" Label="Порядковый номер" Variant="Variant.Outlined"
@@ -47,7 +47,7 @@
     public class StageDialogModel
     {
         public string Name { get; set; } = string.Empty;
-        public int RoleId { get; set; }
+        public int? RoleId { get; set; }
         public int OrderSequence { get; set; } = 1;
     }
 }

@@ -29,6 +29,7 @@ public interface ITemplateService
     Task<List<TemplateDto>> GetAllAsync();
     Task<TemplateDto?> CreateAsync(CreateTemplateDto dto);
     Task<TemplateDto?> UpdateAsync(int id, UpdateTemplateDto dto);
+    Task DeleteAsync(int id);
 }
 
 public class TemplateService : ITemplateService
@@ -57,5 +58,11 @@ public class TemplateService : ITemplateService
         var response = await _http.PutAsJsonAsync($"api/templates/{id}", dto);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<TemplateDto>();
+    }
+
+    public async Task DeleteAsync(int id)
+    {
+        var response = await _http.DeleteAsync($"api/templates/{id}");
+        response.EnsureSuccessStatusCode();
     }
 }

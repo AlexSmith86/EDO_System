@@ -30,6 +30,8 @@ if (string.Equals(clientScheme, "https", StringComparison.OrdinalIgnoreCase) &&
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(backendUrl) });
 builder.Services.AddMudServices();
+// MudBlazor 9+: DatePicker, Timeline и др. требуют TimeProvider в DI; в WASM по умолчанию его нет. Регистрируем после AddMudServices.
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddScoped<JwtAuthenticationStateProvider>();
@@ -61,5 +63,7 @@ builder.Services.AddScoped<ICategoryService>(sp =>
     new CategoryService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
 builder.Services.AddScoped<IDashboardService>(sp =>
     new DashboardService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
+builder.Services.AddScoped<IWorkflowChainService>(sp =>
+    new WorkflowChainService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("EDO.API")));
 
 await builder.Build().RunAsync();

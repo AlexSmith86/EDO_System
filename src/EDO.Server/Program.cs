@@ -52,6 +52,17 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<EDO.Server.Data.AppDbContext>();
     context.Database.Migrate();
 
+    var userRole = context.Roles.FirstOrDefault(r => r.Name == "Пользователь");
+    if (userRole == null)
+    {
+        context.Roles.Add(new EDO.Server.Models.Role
+        {
+            Name = "Пользователь",
+            Description = "Базовый пользователь системы"
+        });
+        context.SaveChanges();
+    }
+
     var admin = context.Users.FirstOrDefault(u => u.Email == "admin@growtech.com");
     if (admin == null)
     {

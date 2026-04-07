@@ -13,8 +13,26 @@ public class TmcRequestDto
     public int? CurrentStageId { get; set; }
     public string? CurrentStageName { get; set; }
     public string? CurrentStagePosition { get; set; }
+    public string? CurrentStageDescription { get; set; }
+    public int CurrentStageOrder { get; set; }
+    public int TotalStages { get; set; }
+    public int? WorkflowChainId { get; set; }
+    public string? WorkflowChainName { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<TmcRequestItemDto> Items { get; set; } = new();
+    public List<ApprovalHistoryDto> ApprovalHistory { get; set; } = new();
+}
+
+public class ApprovalHistoryDto
+{
+    public int Id { get; set; }
+    public string StageName { get; set; } = string.Empty;
+    public string StagePosition { get; set; } = string.Empty;
+    public string Decision { get; set; } = string.Empty;
+    public string DecisionDisplay { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string? Comment { get; set; }
+    public DateTime CreatedAt { get; set; }
 }
 
 public class TmcRequestItemDto
@@ -37,6 +55,7 @@ public class TmcRequestItemDto
 public class CreateTmcRequestDto
 {
     public string? ProjectName { get; set; }
+    public int? WorkflowChainId { get; set; }
     public List<CreateTmcRequestItemDto> Items { get; set; } = new();
 }
 
@@ -75,6 +94,7 @@ public interface ITmcRequestService
     Task<TmcRequestDto?> UpdateAsync(int id, UpdateTmcRequestDto dto);
     Task<TmcRequestDto?> SendAsync(int id);
     Task<TmcRequestDto?> SubmitDecisionAsync(int id, SubmitDecisionDto dto);
+    Task DeleteAsync(int id);
 }
 
 public class TmcRequestService : ITmcRequestService
@@ -127,5 +147,11 @@ public class TmcRequestService : ITmcRequestService
         var response = await _http.PostAsJsonAsync($"api/tmcrequests/{id}/decision", dto);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<TmcRequestDto>();
+    }
+
+    public async Task DeleteAsync(int id)
+    {
+        var response = await _http.DeleteAsync($"api/tmcrequests/{id}");
+        response.EnsureSuccessStatusCode();
     }
 }

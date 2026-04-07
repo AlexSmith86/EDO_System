@@ -2,80 +2,168 @@
 @attribute [Authorize]
 @using EDO.Client.Services
 @inject IApprovalStageService StageService
+@inject IWorkflowChainService ChainService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
-    <MudText Typo="Typo.h5" Style="font-weight: 700;">Технологический конструктор</MudText>
+    <MudText Typo="Typo.h5" Style="font-weight: 700;">Конструктор процессов</MudText>
     <MudText Typo="Typo.body2" Color="Color.Secondary">
-        Настройка цепочки согласования документов
+        Настройка цепочек согласования документов
     </MudText>
 </MudPaper>
 
-<MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="@OpenCreateDialog" Class="mb-4" Style="text-transform: none;">
-    Добавить этап
-</MudButton>
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4" @bind-ActivePanelIndex="_activeTab">
+    <MudTabPanel Text="Стандартный маршрут ТМЦ" Icon="@Icons.Material.Filled.AccountTree">
+        @* === Стандартные этапы === *@
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@OpenCreateStageDialog" Class="my-4" Style="text-transform: none;">
+            Добавить этап
+        </MudButton>
 
-@if (_loading)
-{
-    <MudProgressLinear Indeterminate="true" Color="Color.Warning" />
-}
-else if (_stages.Count == 0)
-{
-    <MudAlert Severity="Severity.Info">
-        Цепочка согласования пуста. Добавьте первый этап.
-    </MudAlert>
-}
-else
-{
-    <MudTimeline TimelinePosition="TimelinePosition.Start">
-        @foreach (var stage in _stages)
+        @if (_loadingStages)
         {
-            <MudTimelineItem Color="Color.Warning" Variant="Variant.Filled" Size="Size.Medium">
-                <ItemDot>
-                    <MudText Typo="Typo.body2" Style="font-weight: 700;">@stage.OrderSequence</MudText>
-                </ItemDot>
-                <ItemContent>
-                    <MudCard Elevation="2" Class="pa-3">
-                        <div class="d-flex justify-space-between align-center">
-                            <div>
-                                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                                    @stage.Name
-                                </MudText>
-                                <MudText Typo="Typo.body2" Color="Color.Secondary">
-                                    Согласует: <MudChip T="string" Size="Size.Small"
-                                                        Color="Color.Primary">@stage.RoleName</MudChip>
-                                </MudText>
-                            </div>
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                           OnClick="@(() => OpenEditDialog(stage))" />
-                        </div>
-                    </MudCard>
-                </ItemContent>
-            </MudTimelineItem>
+            <MudProgressLinear Indeterminate="true" Color="Color.Warning" />
         }
-    </MudTimeline>
-}
+        else if (_stages.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">
+                Цепочка согласования пуста. Добавьте первый этап.
+            </MudAlert>
+        }
+        else
+        {
+            <MudTimeline TimelinePosition="TimelinePosition.Start">
+                @foreach (var stage in _stages)
+                {
+                    <MudTimelineItem Color="Color.Warning" Variant="Variant.Filled" Size="Size.Medium">
+                        <ItemDot>
+                            <MudText Typo="Typo.body2" Style="font-weight: 700;">@stage.OrderSequence</MudText>
+                        </ItemDot>
+                        <ItemContent>
+                            <MudCard Elevation="2" Class="pa-3">
+                                <div class="d-flex justify-space-between align-center">
+                                    <div>
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                                            @stage.Name
+                                        </MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                            Согласует: <MudChip T="string" Size="Size.Small"
+                                                                Color="Color.Warning">@(stage.RoleName ?? stage.RequiredPosition ?? "—")</MudChip>
+                                        </MudText>
+                                    </div>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                   OnClick="@(() => OpenEditStageDialog(stage))" />
+                                </div>
+                            </MudCard>
+                        </ItemContent>
+                    </MudTimelineItem>
+                }
+            </MudTimeline>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Кастомные цепочки" Icon="@Icons.Material.Filled.LinearScale">
+        @* === Кастомные цепочки === *@
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@OpenCreateChainDialog" Class="my-4" Style="text-transform: none;">
+            Новая цепочка
+        </MudButton>
+
+        @if (_loadingChains)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Warning" />
+        }
+        else if (_chains.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">
+                Кастомных цепочек пока нет. Создайте первую.
+            </MudAlert>
+        }
+        else
+        {
+            @foreach (var chain in _chains)
+            {
+                <MudCard Elevation="2" Class="pa-4 mb-4">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                        <div class="d-flex align-center gap-2">
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">@chain.Name</MudText>
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(chain.IsActive ? Color.Success : Color.Default)">
+                                @(chain.IsActive ? "Активна" : "Неактивна")
+                            </MudChip>
+                        </div>
+                        <div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                           OnClick="@(() => OpenEditChainDialog(chain))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteChain(chain))" />
+                        </div>
+                    </div>
+
+                    @if ((chain.Steps ?? []).Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Warning" Dense="true">Нет шагов</MudAlert>
+                    }
+                    else
+                    {
+                        <MudTimeline TimelinePosition="TimelinePosition.Start">
+                            @foreach (var step in (chain.Steps ?? []).OrderBy(s => s.Order))
+                            {
+                                <MudTimelineItem Color="Color.Info" Variant="Variant.Filled" Size="Size.Small">
+                                    <ItemDot>
+                                        <MudText Typo="Typo.caption" Style="font-weight: 700;">@step.Order</MudText>
+                                    </ItemDot>
+                                    <ItemContent>
+                                        <MudText Typo="Typo.body1" Style="font-weight: 600;">@step.StepName</MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                            Должность: @step.TargetPosition
+                                        </MudText>
+                                    </ItemContent>
+                                </MudTimelineItem>
+                            }
+                        </MudTimeline>
+                    }
+                </MudCard>
+            }
+        }
+    </MudTabPanel>
+</MudTabs>
 
 @code {
     private List<ApprovalStageDto> _stages = new();
-    private bool _loading = true;
+    private List<WorkflowChainDto> _chains = new();
+    private bool _loadingStages = true;
+    private bool _loadingChains = true;
+    private int _activeTab;
 
-    protected override async Task OnInitializedAsync() => await Load();
-
-    private async Task Load()
+    protected override async Task OnInitializedAsync()
     {
-        _loading = true;
-        try { _stages = await StageService.GetAllAsync(); }
-        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
-        finally { _loading = false; }
+        await Task.WhenAll(LoadStages(), LoadChains());
     }
 
-    private async Task OpenCreateDialog()
+    private async Task LoadStages()
+    {
+        _loadingStages = true;
+        try { _stages = await StageService.GetAllAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _loadingStages = false; }
+    }
+
+    private async Task LoadChains()
+    {
+        _loadingChains = true;
+        try { _chains = await ChainService.GetAllAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _loadingChains = false; }
+    }
+
+    // === Стандартные этапы ===
+
+    private async Task OpenCreateStageDialog()
     {
         var nextOrder = _stages.Count > 0 ? _stages.Max(s => s.OrderSequence) + 1 : 1;
-
         var parameters = new DialogParameters<StageDialog>
         {
             { x => x.Model, new StageDialog.StageDialogModel { OrderSequence = nextOrder } },
@@ -94,13 +182,13 @@ else
                     Name = model.Name, RoleId = model.RoleId, OrderSequence = model.OrderSequence
                 });
                 Snackbar.Add("Этап создан", Severity.Success);
-                await Load();
+                await LoadStages();
             }
             catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
         }
     }
 
-    private async Task OpenEditDialog(ApprovalStageDto stage)
+    private async Task OpenEditStageDialog(ApprovalStageDto stage)
     {
         var model = new StageDialog.StageDialogModel
         {
@@ -124,9 +212,86 @@ else
                     Name = edited.Name, RoleId = edited.RoleId, OrderSequence = edited.OrderSequence
                 });
                 Snackbar.Add("Этап обновлён", Severity.Success);
-                await Load();
+                await LoadStages();
             }
             catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
         }
+    }
+
+    // === Кастомные цепочки ===
+
+    private async Task OpenCreateChainDialog()
+    {
+        var parameters = new DialogParameters<ChainDialog>
+        {
+            { x => x.IsEdit, false }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ChainDialog>("Новая цепочка согласования", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: ChainDialog.ChainDialogResult model })
+        {
+            try
+            {
+                await ChainService.CreateAsync(new CreateWorkflowChainDto
+                {
+                    Name = model.Name,
+                    Steps = model.Steps.Select(s => new CreateWorkflowStepDto
+                    {
+                        StepName = s.StepName,
+                        TargetPosition = s.TargetPosition,
+                        Order = s.Order
+                    }).ToList()
+                });
+                Snackbar.Add("Цепочка создана", Severity.Success);
+                await LoadChains();
+            }
+            catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        }
+    }
+
+    private async Task OpenEditChainDialog(WorkflowChainDto chain)
+    {
+        var parameters = new DialogParameters<ChainDialog>
+        {
+            { x => x.IsEdit, true },
+            { x => x.ExistingChain, chain }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ChainDialog>("Редактирование цепочки", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: ChainDialog.ChainDialogResult model })
+        {
+            try
+            {
+                await ChainService.UpdateAsync(chain.Id, new UpdateWorkflowChainDto
+                {
+                    Name = model.Name,
+                    IsActive = model.IsActive,
+                    Steps = model.Steps.Select(s => new CreateWorkflowStepDto
+                    {
+                        StepName = s.StepName,
+                        TargetPosition = s.TargetPosition,
+                        Order = s.Order
+                    }).ToList()
+                });
+                Snackbar.Add("Цепочка обновлена", Severity.Success);
+                await LoadChains();
+            }
+            catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        }
+    }
+
+    private async Task DeleteChain(WorkflowChainDto chain)
+    {
+        try
+        {
+            await ChainService.DeleteAsync(chain.Id);
+            Snackbar.Add("Цепочка удалена", Severity.Success);
+            await LoadChains();
+        }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
     }
 }

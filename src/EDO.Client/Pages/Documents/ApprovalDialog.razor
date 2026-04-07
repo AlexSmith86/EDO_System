@@ -23,9 +23,20 @@
             </MudItem>
         </MudGrid>
 
+        @if (!string.IsNullOrEmpty(Request.CurrentStageDescription))
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-3" Dense="true" NoIcon="false">
+                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;" Class="mb-1">Действия на этапе:</MudText>
+                @foreach (var line in Request.CurrentStageDescription.Split('\n'))
+                {
+                    <MudText Typo="Typo.body2">• @line</MudText>
+                }
+            </MudAlert>
+        }
+
         <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2" Style="font-weight: 600;">Позиции заявки</MudText>
 
-        <MudTable Items="@Request.Items" Dense="true" Hover="true" Elevation="0" Striped="true">
+        <MudTable Items="@Request.Items" Dense="true" Hover="true" Elevation="0" Striped="false">
             <HeaderContent>
                 <MudTh>№</MudTh>
                 <MudTh>Группа</MudTh>
@@ -43,6 +54,55 @@
                 <MudTd>@(context.PlannedDeliveryDate?.ToString("dd.MM.yyyy") ?? "—")</MudTd>
             </RowTemplate>
         </MudTable>
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2" Style="font-weight: 600;">Изначальные вводные по позициям</MudText>
+        @foreach (var item in Request.Items)
+        {
+            <MudPaper Elevation="0" Outlined="true" Class="pa-3 mb-2">
+                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">@item.Name</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Инициатор позиции: @(item.InitiatorName ?? "—"), @(item.InitiatorPosition ?? "—")
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Ссылка на счёт/КП: @(item.InvoiceLink ?? "—")
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Комментарий инициатора: @(string.IsNullOrWhiteSpace(item.Comment) ? "—" : item.Comment)
+                </MudText>
+            </MudPaper>
+        }
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2" Style="font-weight: 600;">Комментарии с прошлых этапов</MudText>
+        @if (Request.ApprovalHistory.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">
+                История согласования пока отсутствует.
+            </MudAlert>
+        }
+        else
+        {
+            <MudList T="ApprovalHistoryDto" Dense="true" Class="pa-0">
+                @foreach (var h in Request.ApprovalHistory)
+                {
+                    <MudListItem T="ApprovalHistoryDto" Class="pa-0">
+                        <MudPaper Elevation="0" Outlined="true" Class="pa-3 mb-2" Style="width: 100%;">
+                            <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                                <MudChip T="string" Size="Size.Small" Color="@GetDecisionColor(h.Decision)" Class="mr-2">
+                                    @h.DecisionDisplay
+                                </MudChip>
+                                @h.StageName (@h.StagePosition)
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @h.UserName, @h.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                            </MudText>
+                            <MudText Typo="Typo.body2" Class="mt-1">
+                                @(string.IsNullOrWhiteSpace(h.Comment) ? "Без комментария" : h.Comment)
+                            </MudText>
+                        </MudPaper>
+                    </MudListItem>
+                }
+            </MudList>
+        }
 
         <MudTextField @bind-Value="_comment" Label="Комментарий" Variant="Variant.Outlined"
                       Lines="3" Class="mt-4"
@@ -72,6 +132,13 @@
     private bool _processing;
 
     private void Cancel() => MudDialog.Cancel();
+
+    private static Color GetDecisionColor(string decision) => decision switch
+    {
+        "Approved" => Color.Success,
+        "Rejected" => Color.Error,
+        _ => Color.Info
+    };
 
     private async Task Submit(string decision)
     {

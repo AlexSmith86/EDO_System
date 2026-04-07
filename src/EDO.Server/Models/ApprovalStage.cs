@@ -12,6 +12,9 @@ public class ApprovalStage
     /// "Инициатор" — особое значение: проверяется по InitiatorUserId заявки.</summary>
     public string RequiredPosition { get; set; } = string.Empty;
 
+    /// <summary>Описание действий на этапе</summary>
+    public string? Description { get; set; }
+
     /// <summary>Порядковый номер этапа в цепочке (0-9)</summary>
     public int OrderSequence { get; set; }
 

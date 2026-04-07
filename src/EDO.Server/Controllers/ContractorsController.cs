@@ -89,4 +89,17 @@ public class ContractorsController : ControllerBase
             ExternalId = entity.ExternalId
         });
     }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Администратор")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await _db.Contractors.FindAsync(id);
+        if (entity is null)
+            return NotFound(new { message = "Контрагент не найден." });
+
+        _db.Contractors.Remove(entity);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
 }

@@ -4,6 +4,7 @@ using EDO.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EDO.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260406090002_AddDescriptionToApprovalStage")]
+    partial class AddDescriptionToApprovalStage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -260,9 +263,6 @@ namespace EDO.Server.Migrations
                     b.Property<int?>("CurrentStageId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("CurrentWorkflowStepId")
-                        .HasColumnType("int");
-
                     b.Property<int>("InitiatorUserId")
                         .HasColumnType("int");
 
@@ -275,18 +275,11 @@ namespace EDO.Server.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<int?>("WorkflowChainId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("CurrentStageId");
 
-                    b.HasIndex("CurrentWorkflowStepId");
-
                     b.HasIndex("InitiatorUserId");
-
-                    b.HasIndex("WorkflowChainId");
 
                     b.ToTable("TmcRequests");
                 });
@@ -446,61 +439,6 @@ namespace EDO.Server.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("EDO.Server.Models.WorkflowChain", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("WorkflowChains");
-                });
-
-            modelBuilder.Entity("EDO.Server.Models.WorkflowStep", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("Order")
-                        .HasColumnType("int");
-
-                    b.Property<string>("StepName")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("TargetPosition")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("WorkflowChainId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowChainId");
-
-                    b.ToTable("WorkflowSteps");
-                });
-
             modelBuilder.Entity("EDO.Server.Models.ActionHistory", b =>
                 {
                     b.HasOne("EDO.Server.Models.ApprovalStage", "Stage")
@@ -537,29 +475,15 @@ namespace EDO.Server.Migrations
                         .HasForeignKey("CurrentStageId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("EDO.Server.Models.WorkflowStep", "CurrentWorkflowStep")
-                        .WithMany()
-                        .HasForeignKey("CurrentWorkflowStepId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("EDO.Server.Models.User", "InitiatorUser")
                         .WithMany()
                         .HasForeignKey("InitiatorUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("EDO.Server.Models.WorkflowChain", "WorkflowChain")
-                        .WithMany()
-                        .HasForeignKey("WorkflowChainId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("CurrentStage");
 
-                    b.Navigation("CurrentWorkflowStep");
-
                     b.Navigation("InitiatorUser");
-
-                    b.Navigation("WorkflowChain");
                 });
 
             modelBuilder.Entity("EDO.Server.Models.TmcRequestItem", b =>
@@ -609,17 +533,6 @@ namespace EDO.Server.Migrations
                     b.Navigation("Role");
                 });
 
-            modelBuilder.Entity("EDO.Server.Models.WorkflowStep", b =>
-                {
-                    b.HasOne("EDO.Server.Models.WorkflowChain", "WorkflowChain")
-                        .WithMany("Steps")
-                        .HasForeignKey("WorkflowChainId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("WorkflowChain");
-                });
-
             modelBuilder.Entity("EDO.Server.Models.Role", b =>
                 {
                     b.Navigation("Users");
@@ -633,11 +546,6 @@ namespace EDO.Server.Migrations
             modelBuilder.Entity("EDO.Server.Models.TmcRequest", b =>
                 {
                     b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("EDO.Server.Models.WorkflowChain", b =>
-                {
-                    b.Navigation("Steps");
                 });
 #pragma warning restore 612, 618
         }

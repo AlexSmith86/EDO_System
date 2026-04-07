@@ -4,6 +4,7 @@
 @inject ITmcRequestService RequestService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
     <MudText Typo="Typo.h5" Style="font-weight: 700;">Электронный реестр — МТО</MudText>
@@ -39,7 +40,7 @@
     </MudItem>
 </MudGrid>
 
-<MudTable Items="@FilteredItems" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
+<MudTable Items="@FilteredItems" Hover="true" Striped="false" Loading="@_loading" Elevation="2"
           Dense="true" Breakpoint="Breakpoint.Sm">
     <HeaderContent>
         <MudTh>Дата</MudTh>
@@ -49,6 +50,7 @@
         <MudTh>Наименование ТМЦ</MudTh>
         <MudTh>Кол-во</MudTh>
         <MudTh>Статус</MudTh>
+        <MudTh>Согласование</MudTh>
         <MudTh>Действия</MudTh>
     </HeaderContent>
     <RowTemplate>
@@ -89,13 +91,41 @@
                 @GetStatusText(context.Status)
             </MudChip>
         </MudTd>
+        <MudTd DataLabel="Согласование">
+            @{
+                var progress = GetApprovalProgress(context);
+            }
+            <MudTooltip Text="@(context.CurrentStageDescription?.Replace("\n", " • ") ?? "")"
+                        Placement="Placement.Top" Arrow="true"
+                        Style="max-width: 350px;"
+                        Disabled="@string.IsNullOrEmpty(context.CurrentStageDescription)">
+                <div style="min-width: 130px;">
+                    <MudProgressLinear Value="@progress.Percent" Color="@progress.Color"
+                                       Size="Size.Small" Rounded="true" Class="mb-1" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center">
+                        @progress.Label
+                    </MudText>
+                    @if (!string.IsNullOrEmpty(context.CurrentStagePosition))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Warning" Align="Align.Center">
+                            Ожидает: @context.CurrentStagePosition
+                        </MudText>
+                    }
+                </div>
+            </MudTooltip>
+        </MudTd>
         <MudTd DataLabel="Действия">
-            @if (context.Status == "Draft" || context.Status == "Rework")
+            @if ((context.Status == "Draft" || context.Status == "Rework") && _isAdmin)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => Navigation.NavigateTo($"/documents/tmcrequests/edit/{context.Id}"))" />
                 <MudIconButton Icon="@Icons.Material.Filled.Send" Size="Size.Small" Color="Color.Success"
                                OnClick="@(() => SendRequest(context.Id))" />
+            }
+            @if (_isAdmin)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeleteRequest(context.Id))" />
             }
         </MudTd>
     </RowTemplate>
@@ -112,6 +142,7 @@
     private bool _loading = true;
     private string? _searchText;
     private string? _statusFilter;
+    private bool _isAdmin;
 
     private IEnumerable<TmcRequestDto> FilteredItems
     {
@@ -130,7 +161,12 @@
         }
     }
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAdmin = authState.User.IsInRole("Администратор");
+        await Load();
+    }
 
     private async Task Load()
     {
@@ -146,6 +182,23 @@
         {
             await RequestService.SendAsync(id);
             Snackbar.Add("Заявка отправлена на согласование", Severity.Success);
+            await Load();
+        }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task DeleteRequest(int id)
+    {
+        if (!_isAdmin)
+        {
+            Snackbar.Add("Удаление доступно только администратору", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await RequestService.DeleteAsync(id);
+            Snackbar.Add("Заявка удалена", Severity.Success);
             await Load();
         }
         catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
@@ -172,4 +225,22 @@
         "Rejected" => "Отклонена",
         _ => status
     };
+
+    private static (double Percent, Color Color, string Label) GetApprovalProgress(TmcRequestDto request)
+    {
+        if (request.Status == "Completed" || request.Status == "Approved")
+            return (100, Color.Success, "Завершено");
+
+        if (request.Status == "Rejected")
+            return (100, Color.Error, "Отклонено");
+
+        if (request.Status == "Draft")
+            return (0, Color.Default, "Черновик");
+
+        if (request.TotalStages == 0)
+            return (0, Color.Default, "—");
+
+        var pct = (double)request.CurrentStageOrder / request.TotalStages * 100;
+        return (pct, Color.Warning, $"{request.CurrentStageOrder} из {request.TotalStages}");
+    }
 }

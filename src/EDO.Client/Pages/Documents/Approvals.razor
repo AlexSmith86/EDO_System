@@ -12,7 +12,7 @@
     </MudText>
 </MudPaper>
 
-<MudTable Items="@_items" Hover="true" Striped="true" Loading="@_loading" Elevation="2"
+<MudTable Items="@_items" Hover="true" Striped="false" Loading="@_loading" Elevation="2"
           Dense="true" Breakpoint="Breakpoint.Sm" OnRowClick="@OnRowClick" T="TmcRequestDto"
           RowStyle="cursor: pointer;">
     <HeaderContent>
@@ -56,13 +56,23 @@
         var request = args.Item;
         if (request is null) return;
 
+        TmcRequestDto details;
+        try
+        {
+            details = await RequestService.GetByIdAsync(request.Id) ?? request;
+        }
+        catch
+        {
+            details = request;
+        }
+
         var parameters = new DialogParameters<ApprovalDialog>
         {
-            { x => x.Request, request }
+            { x => x.Request, details }
         };
         var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
         var dialog = await DialogService.ShowAsync<ApprovalDialog>(
-            $"Заявка №{request.Id}", parameters, options);
+            $"Заявка №{details.Id}", parameters, options);
         var result = await dialog.Result;
 
         if (result is { Canceled: false })

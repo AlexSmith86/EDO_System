@@ -1,3 +1,5 @@
+@inject AuthenticationStateProvider AuthStateProvider
+
 <MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">
         Реестр
@@ -25,11 +27,24 @@
     </MudNavGroup>
     <MudNavGroup Title="Администрирование" Icon="@Icons.Material.Filled.AdminPanelSettings"
                  Expanded="false">
-        <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.People">
-            Пользователи
-        </MudNavLink>
         <MudNavLink Href="/admin/constructor" Icon="@Icons.Material.Filled.AccountTree">
             Конструктор процессов
         </MudNavLink>
+        @if (_isAdmin)
+        {
+            <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.People">
+                Пользователи
+            </MudNavLink>
+        }
     </MudNavGroup>
 </MudNavMenu>
+
+@code {
+    private bool _isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAdmin = authState.User.IsInRole("Администратор");
+    }
+}

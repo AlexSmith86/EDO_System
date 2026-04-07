@@ -32,6 +32,7 @@ public interface ITmcService
     Task<List<TmcDto>> GetAllAsync();
     Task<TmcDto?> CreateAsync(CreateTmcDto dto);
     Task<TmcDto?> UpdateAsync(int id, UpdateTmcDto dto);
+    Task DeleteAsync(int id);
 }
 
 public class TmcService : ITmcService
@@ -60,5 +61,11 @@ public class TmcService : ITmcService
         var response = await _http.PutAsJsonAsync($"api/tmcs/{id}", dto);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<TmcDto>();
+    }
+
+    public async Task DeleteAsync(int id)
+    {
+        var response = await _http.DeleteAsync($"api/tmcs/{id}");
+        response.EnsureSuccessStatusCode();
     }
 }

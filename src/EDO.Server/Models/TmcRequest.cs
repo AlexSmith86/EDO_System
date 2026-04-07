@@ -21,6 +21,16 @@ public class TmcRequest
 
     public ApprovalStage? CurrentStage { get; set; }
 
+    /// <summary>Кастомная цепочка согласования (null = стандартный маршрут ТМЦ)</summary>
+    public int? WorkflowChainId { get; set; }
+
+    public WorkflowChain? WorkflowChain { get; set; }
+
+    /// <summary>Текущий шаг кастомной цепочки (null если стандартный маршрут)</summary>
+    public int? CurrentWorkflowStepId { get; set; }
+
+    public WorkflowStep? CurrentWorkflowStep { get; set; }
+
     /// <summary>Дата создания</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
