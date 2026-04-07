@@ -1,5 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 
+# Встановлюємо Python, який критично необхідний для збірки WebAssembly (wasm-tools)
+RUN apt-get update && apt-get install -y python3
+
 # Install wasm-tools workload for Blazor AOT/trimming
 RUN dotnet workload install wasm-tools
 
