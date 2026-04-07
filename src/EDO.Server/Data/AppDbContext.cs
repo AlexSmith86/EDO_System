@@ -170,6 +170,7 @@ public class AppDbContext : DbContext
             entity.HasKey(i => i.Id);
             entity.Property(i => i.Name).HasMaxLength(500).IsRequired();
             entity.Property(i => i.Quantity).HasPrecision(18, 4);
+            entity.Property(i => i.Price).HasPrecision(18, 2);
             entity.Property(i => i.Unit).HasMaxLength(50);
             entity.Property(i => i.InvoiceLink).HasMaxLength(1000);
             entity.Property(i => i.Comment).HasMaxLength(1000);

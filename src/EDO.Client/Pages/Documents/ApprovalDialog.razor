@@ -43,6 +43,7 @@
                 <MudTh>Наименование</MudTh>
                 <MudTh>Кол-во</MudTh>
                 <MudTh>Ед.</MudTh>
+                <MudTh>Стоимость</MudTh>
                 <MudTh>Срок</MudTh>
             </HeaderContent>
             <RowTemplate>
@@ -51,6 +52,7 @@
                 <MudTd>@context.Name</MudTd>
                 <MudTd>@context.Quantity</MudTd>
                 <MudTd>@(context.Unit ?? "—")</MudTd>
+                <MudTd>@(context.Price?.ToString("N2") ?? "—")</MudTd>
                 <MudTd>@(context.PlannedDeliveryDate?.ToString("dd.MM.yyyy") ?? "—")</MudTd>
             </RowTemplate>
         </MudTable>

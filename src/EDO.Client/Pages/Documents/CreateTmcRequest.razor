@@ -41,8 +41,8 @@ else
                              Label="Проект" Variant="Variant.Outlined"
                              Class="mb-4"
                              SearchFunc="@SearchProjects"
+                             CoerceText="false"
                              CoerceValue="false"
-                             Immediate="true"
                              Clearable="true" />
 
             <MudText Typo="Typo.subtitle1" Class="mb-3" Style="font-weight: 600;">Позиции заявки</MudText>
@@ -117,7 +117,13 @@ else
                                              Label="Ед. изм." Variant="Variant.Outlined"
                                              Dense="true" Margin="Margin.Dense"
                                              SearchFunc="@SearchUnits"
+                                             CoerceText="false"
                                              CoerceValue="false" />
+                        </MudItem>
+                        <MudItem xs="4" md="2">
+                            <MudNumericField @bind-Value="item.Price" Label="Стоимость"
+                                             Variant="Variant.Outlined" Min="0m"
+                                             Margin="Margin.Dense" Format="N2" />
                         </MudItem>
                         <MudItem xs="4" md="3">
                             <MudDatePicker @bind-Date="item.PlannedDeliveryDate" Label="Срок поставки"
@@ -217,6 +223,7 @@ else
                             Name = i.Name,
                             Quantity = i.Quantity,
                             Unit = i.Unit,
+                            Price = i.Price,
                             PlannedDeliveryDate = i.PlannedDeliveryDate,
                             InvoiceLink = i.InvoiceLink,
                             Comment = i.Comment,
@@ -293,6 +300,7 @@ else
                 Name = i.Name,
                 Quantity = i.Quantity,
                 Unit = i.Unit,
+                Price = i.Price,
                 PlannedDeliveryDate = i.PlannedDeliveryDate,
                 InvoiceLink = i.InvoiceLink,
                 Comment = i.Comment,
@@ -410,6 +418,7 @@ else
         public string Name { get; set; } = string.Empty;
         public decimal Quantity { get; set; } = 1;
         public string? Unit { get; set; }
+        public decimal? Price { get; set; }
         public DateTime? PlannedDeliveryDate { get; set; }
         public string? InvoiceLink { get; set; }
         public string? Comment { get; set; }

@@ -14,7 +14,15 @@ public class AuthHttpHandler : DelegatingHandler
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var token = await _localStorage.GetItemAsync("authToken");
+        string? token = null;
+        try
+        {
+            token = await _localStorage.GetItemAsync("authToken");
+        }
+        catch
+        {
+            // Ignore storage access issues; request will be sent without auth header.
+        }
         if (!string.IsNullOrWhiteSpace(token))
         {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);

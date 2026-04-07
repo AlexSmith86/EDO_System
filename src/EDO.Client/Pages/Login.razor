@@ -14,7 +14,7 @@
                     @(_step == 1 ? "Вход в систему" : "Подтверждение")
                 </MudText>
                 <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Secondary">
-                    @(_step == 1 ? "Электронный документооборот" : "Введите код из Telegram")
+                    @(_step == 1 ? "Электронный документооборот" : "Введите код из Telegram-бота")
                 </MudText>
             </CardHeaderContent>
         </MudCardHeader>
@@ -22,6 +22,11 @@
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
                 <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true">@_errorMessage</MudAlert>
+            }
+
+            @if (!string.IsNullOrEmpty(_infoMessage))
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-4" Dense="true">@_infoMessage</MudAlert>
             }
 
             @if (_step == 1)
@@ -74,6 +79,7 @@
     private string _password = string.Empty;
     private string _code = string.Empty;
     private string? _errorMessage;
+    private string? _infoMessage;
     private bool _loading;
 
     private async Task OnLoginKeyDown(KeyboardEventArgs e)
@@ -98,6 +104,8 @@
 
             if (response.IsSuccessStatusCode)
             {
+                var result = await response.Content.ReadFromJsonAsync<ServerMessage>();
+                _infoMessage = result?.Message;
                 _step = 2;
             }
             else
@@ -156,8 +164,10 @@
         _step = 1;
         _code = string.Empty;
         _errorMessage = null;
+        _infoMessage = null;
     }
 
     private record ErrorResponse(string? Message);
+    private record ServerMessage(string? Message);
     private record TokenResponse(string? Token);
 }

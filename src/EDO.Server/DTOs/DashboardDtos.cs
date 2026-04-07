@@ -11,8 +11,8 @@ public class DashboardStatsDto
     /// <summary>Всего заявок в работе по компании</summary>
     public int TotalActiveRequestsCount { get; set; }
 
-    /// <summary>Общая сумма заявок в работе (₽)</summary>
-    public decimal TotalActiveRequestsSum { get; set; }
+    /// <summary>Количество согласованных заявок</summary>
+    public int ApprovedCount { get; set; }
 
     /// <summary>Распределение заявок по статусам</summary>
     public List<StatusCountDto> RequestsByStatus { get; set; } = new();

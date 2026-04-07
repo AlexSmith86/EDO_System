@@ -45,6 +45,7 @@ public class TmcRequestItemDto
     public string Name { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public string? Unit { get; set; }
+    public decimal? Price { get; set; }
     public DateTime? PlannedDeliveryDate { get; set; }
     public string? InvoiceLink { get; set; }
     public string? Comment { get; set; }
@@ -66,6 +67,7 @@ public class CreateTmcRequestItemDto
     public string Name { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public string? Unit { get; set; }
+    public decimal? Price { get; set; }
     public DateTime? PlannedDeliveryDate { get; set; }
     public string? InvoiceLink { get; set; }
     public string? Comment { get; set; }
@@ -89,6 +91,7 @@ public interface ITmcRequestService
 {
     Task<List<TmcRequestDto>> GetMyAsync();
     Task<List<TmcRequestDto>> GetPendingAsync();
+    Task<List<TmcRequestDto>> GetApprovedAsync();
     Task<TmcRequestDto?> GetByIdAsync(int id);
     Task<TmcRequestDto?> CreateAsync(CreateTmcRequestDto dto);
     Task<TmcRequestDto?> UpdateAsync(int id, UpdateTmcRequestDto dto);
@@ -140,6 +143,11 @@ public class TmcRequestService : ITmcRequestService
     public async Task<List<TmcRequestDto>> GetPendingAsync()
     {
         return await _http.GetFromJsonAsync<List<TmcRequestDto>>("api/tmcrequests/pending") ?? new();
+    }
+
+    public async Task<List<TmcRequestDto>> GetApprovedAsync()
+    {
+        return await _http.GetFromJsonAsync<List<TmcRequestDto>>("api/tmcrequests/approved") ?? new();
     }
 
     public async Task<TmcRequestDto?> SubmitDecisionAsync(int id, SubmitDecisionDto dto)

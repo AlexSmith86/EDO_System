@@ -45,6 +45,7 @@ public class TmcRequestItemDto
     public string Name { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public string? Unit { get; set; }
+    public decimal? Price { get; set; }
     public DateTime? PlannedDeliveryDate { get; set; }
     public string? InvoiceLink { get; set; }
     public string? Comment { get; set; }
@@ -72,6 +73,8 @@ public class CreateTmcRequestItemDto
 
     [MaxLength(50)]
     public string? Unit { get; set; }
+
+    public decimal? Price { get; set; }
 
     public DateTime? PlannedDeliveryDate { get; set; }
 

@@ -1,0 +1,120 @@
+@page "/documents/approved"
+@attribute [Authorize]
+@using EDO.Client.Services
+@inject ITmcRequestService RequestService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
+    <MudText Typo="Typo.h5" Style="font-weight: 700;">Согласованные заявки</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">
+        Заявки, прошедшие полный цикл согласования
+    </MudText>
+</MudPaper>
+
+<MudGrid Class="mb-4">
+    <MudItem xs="12" md="4">
+        <MudTextField @bind-Value="_searchText" Label="Поиск по наименованию или инициатору"
+                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" />
+    </MudItem>
+</MudGrid>
+
+<MudTable Items="@FilteredItems" Hover="true" Striped="false" Loading="@_loading" Elevation="2"
+          Dense="true" Breakpoint="Breakpoint.Sm" OnRowClick="@OnRowClick" T="TmcRequestDto"
+          RowStyle="cursor: pointer;">
+    <HeaderContent>
+        <MudTh>№</MudTh>
+        <MudTh>Дата</MudTh>
+        <MudTh>Проект</MudTh>
+        <MudTh>Инициатор</MudTh>
+        <MudTh>Наименование ТМЦ</MudTh>
+        <MudTh>Позиций</MudTh>
+        <MudTh>Статус</MudTh>
+        <MudTh>Этапов пройдено</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="№">@context.Id</MudTd>
+        <MudTd DataLabel="Дата">@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudTd>
+        <MudTd DataLabel="Проект">@(context.ProjectName ?? "—")</MudTd>
+        <MudTd DataLabel="Инициатор">@context.InitiatorName</MudTd>
+        <MudTd DataLabel="Наименование">
+            @if (context.Items?.Any() == true)
+            {
+                @(context.Items.First().Name ?? "—")
+                @if (context.Items.Count > 1)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary"> (+@(context.Items.Count - 1))</MudText>
+                }
+            }
+            else
+            {
+                @:—
+            }
+        </MudTd>
+        <MudTd DataLabel="Позиций">@(context.Items?.Count ?? 0)</MudTd>
+        <MudTd DataLabel="Статус">
+            <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                @(context.StatusDisplay ?? "Согласована")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Этапов">
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">
+                @context.ApprovalHistory.Count
+            </MudChip>
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>Согласованных заявок пока нет</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>Загрузка...</MudText>
+    </LoadingContent>
+</MudTable>
+
+@code {
+    private List<TmcRequestDto> _items = new();
+    private bool _loading = true;
+    private string? _searchText;
+
+    private IEnumerable<TmcRequestDto> FilteredItems
+    {
+        get
+        {
+            var result = _items.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(_searchText))
+            {
+                var q = _searchText;
+                result = result.Where(r =>
+                    (r.InitiatorName ?? "").Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    r.Items.Any(i => (i.Name ?? "").Contains(q, StringComparison.OrdinalIgnoreCase)));
+            }
+            return result;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _items = await RequestService.GetApprovedAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task OnRowClick(TableRowClickEventArgs<TmcRequestDto> args)
+    {
+        var request = args.Item;
+        if (request is null) return;
+
+        var parameters = new DialogParameters<ApprovalHistoryDialog>
+        {
+            { x => x.Request, request }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<ApprovalHistoryDialog>(
+            $"Заявка №{request.Id} — история согласования", parameters, options);
+    }
+}

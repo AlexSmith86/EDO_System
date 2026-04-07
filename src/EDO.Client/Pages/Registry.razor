@@ -86,15 +86,16 @@ else if (_stats is not null)
         </MudItem>
 
         <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="3" Style="background: linear-gradient(135deg, #6A1B9A 0%, #AB47BC 100%);">
+            <MudCard Elevation="3" Style="background: linear-gradient(135deg, #6A1B9A 0%, #AB47BC 100%); cursor: pointer;"
+                     @onclick="@(() => Navigation.NavigateTo("/documents/approved"))">
                 <MudCardContent Class="d-flex flex-column align-center pa-4">
-                    <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Size="Size.Large"
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large"
                              Style="color: rgba(255,255,255,0.85); margin-bottom: 8px;" />
                     <MudText Typo="Typo.h3" Style="color: white; font-weight: 700;">
-                        @FormatSum(_stats.TotalActiveRequestsSum)
+                        @_stats.ApprovedCount
                     </MudText>
                     <MudText Typo="Typo.body2" Style="color: rgba(255,255,255,0.85); text-align: center;">
-                        Сумма позиций в работе
+                        Согласованные заявки
                     </MudText>
                 </MudCardContent>
             </MudCard>
@@ -197,13 +198,6 @@ else
         }
         catch (Exception ex) { _errorMessage = ex.Message; }
         finally { _loading = false; }
-    }
-
-    private static string FormatSum(decimal sum)
-    {
-        if (sum >= 1_000_000) return $"{sum / 1_000_000:0.#}M";
-        if (sum >= 1_000) return $"{sum / 1_000:0.#}K";
-        return sum.ToString("N0");
     }
 
     private static Color GetStatusColor(string status) => status switch

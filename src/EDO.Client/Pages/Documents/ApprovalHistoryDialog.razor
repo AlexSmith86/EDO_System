@@ -1,0 +1,123 @@
+@using EDO.Client.Services
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="6">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Инициатор</MudText>
+                <MudText Typo="Typo.body1">@Request.InitiatorName</MudText>
+            </MudItem>
+            <MudItem xs="6">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Дата создания</MudText>
+                <MudText Typo="Typo.body1">@Request.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</MudText>
+            </MudItem>
+            <MudItem xs="6">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Проект</MudText>
+                <MudText Typo="Typo.body1">@(Request.ProjectName ?? "—")</MudText>
+            </MudItem>
+            <MudItem xs="6">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Статус</MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                    @(Request.StatusDisplay ?? "Согласована")
+                </MudChip>
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2" Style="font-weight: 600;">Позиции заявки</MudText>
+
+        <MudTable Items="@Request.Items" Dense="true" Hover="true" Elevation="0" Striped="false">
+            <HeaderContent>
+                <MudTh>№</MudTh>
+                <MudTh>Группа</MudTh>
+                <MudTh>Наименование</MudTh>
+                <MudTh>Кол-во</MudTh>
+                <MudTh>Ед.</MudTh>
+                <MudTh>Стоимость</MudTh>
+                <MudTh>Срок</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@(Request.Items.IndexOf(context) + 1)</MudTd>
+                <MudTd>@(context.GroupName ?? "—")</MudTd>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@context.Quantity</MudTd>
+                <MudTd>@(context.Unit ?? "—")</MudTd>
+                <MudTd>@(context.Price?.ToString("N2") ?? "—")</MudTd>
+                <MudTd>@(context.PlannedDeliveryDate?.ToString("dd.MM.yyyy") ?? "—")</MudTd>
+            </RowTemplate>
+        </MudTable>
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2" Style="font-weight: 600;">Вводные по позициям</MudText>
+        @foreach (var item in Request.Items)
+        {
+            <MudPaper Elevation="0" Outlined="true" Class="pa-3 mb-2">
+                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">@item.Name</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Инициатор позиции: @(item.InitiatorName ?? "—"), @(item.InitiatorPosition ?? "—")
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Ссылка на счёт/КП: @(item.InvoiceLink ?? "—")
+                </MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Комментарий инициатора: @(string.IsNullOrWhiteSpace(item.Comment) ? "—" : item.Comment)
+                </MudText>
+            </MudPaper>
+        }
+
+        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2" Style="font-weight: 600;">История согласования</MudText>
+
+        @if (Request.ApprovalHistory.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">
+                История согласования отсутствует.
+            </MudAlert>
+        }
+        else
+        {
+            <MudTimeline TimelinePosition="TimelinePosition.Start">
+                @foreach (var h in Request.ApprovalHistory.OrderBy(x => x.CreatedAt))
+                {
+                    <MudTimelineItem Color="@GetDecisionColor(h.Decision)" Size="Size.Small">
+                        <ItemContent>
+                            <MudPaper Elevation="0" Outlined="true" Class="pa-3">
+                                <div class="d-flex align-center gap-2 mb-1">
+                                    <MudChip T="string" Size="Size.Small" Color="@GetDecisionColor(h.Decision)">
+                                        @h.DecisionDisplay
+                                    </MudChip>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                                        @h.StageName (@h.StagePosition)
+                                    </MudText>
+                                </div>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @h.UserName — @h.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                </MudText>
+                                @if (!string.IsNullOrWhiteSpace(h.Comment))
+                                {
+                                    <MudText Typo="Typo.body2" Class="mt-1">@h.Comment</MudText>
+                                }
+                            </MudPaper>
+                        </ItemContent>
+                    </MudTimelineItem>
+                }
+            </MudTimeline>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Variant="Variant.Filled" Color="Color.Default" Style="text-transform: none;">
+            Закрыть
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public TmcRequestDto Request { get; set; } = null!;
+
+    private void Close() => MudDialog.Close();
+
+    private static Color GetDecisionColor(string decision) => decision switch
+    {
+        "Approved" => Color.Success,
+        "Rejected" => Color.Error,
+        _ => Color.Info
+    };
+}

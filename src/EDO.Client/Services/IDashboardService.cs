@@ -7,7 +7,7 @@ public class DashboardStatsDto
     public int AwaitingMyApprovalCount { get; set; }
     public int MyActiveRequestsCount { get; set; }
     public int TotalActiveRequestsCount { get; set; }
-    public decimal TotalActiveRequestsSum { get; set; }
+    public int ApprovedCount { get; set; }
     public List<StatusCountDto> RequestsByStatus { get; set; } = new();
 }
 

@@ -91,6 +91,7 @@ public class TmcRequestsController : ControllerBase
                 Name = i.Name,
                 Quantity = i.Quantity,
                 Unit = i.Unit,
+                Price = i.Price,
                 PlannedDeliveryDate = i.PlannedDeliveryDate,
                 InvoiceLink = i.InvoiceLink,
                 Comment = i.Comment,
@@ -134,6 +135,7 @@ public class TmcRequestsController : ControllerBase
             Name = i.Name,
             Quantity = i.Quantity,
             Unit = i.Unit,
+            Price = i.Price,
             PlannedDeliveryDate = i.PlannedDeliveryDate,
             InvoiceLink = i.InvoiceLink,
             Comment = i.Comment,
@@ -225,6 +227,26 @@ public class TmcRequestsController : ControllerBase
         await EnsureTotalStagesLoaded();
         var updated = await LoadRequest(entity.Id);
         return Ok(MapToDto(updated!));
+    }
+
+    /// <summary>Согласованные заявки (Completed / Approved) с историей</summary>
+    [HttpGet("approved")]
+    public async Task<ActionResult<List<TmcRequestDto>>> GetApproved()
+    {
+        await EnsureTotalStagesLoaded();
+        var entities = await LoadAllRequests()
+            .Where(r => r.Status == TmcRequestStatus.Completed || r.Status == TmcRequestStatus.Approved)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
+        var result = new List<TmcRequestDto>();
+        foreach (var r in entities)
+        {
+            var history = await LoadApprovalHistory(r.Id);
+            result.Add(MapToDto(r, _totalStages, history));
+        }
+
+        return Ok(result);
     }
 
     /// <summary>Получить заявки, ожидающие действия текущего пользователя</summary>
@@ -474,6 +496,7 @@ public class TmcRequestsController : ControllerBase
                 Name = i.Name,
                 Quantity = i.Quantity,
                 Unit = i.Unit,
+                Price = i.Price,
                 PlannedDeliveryDate = i.PlannedDeliveryDate,
                 InvoiceLink = i.InvoiceLink,
                 Comment = i.Comment,

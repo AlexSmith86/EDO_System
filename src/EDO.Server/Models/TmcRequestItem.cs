@@ -29,6 +29,9 @@ public class TmcRequestItem
     /// <summary>Единица измерения</summary>
     public string? Unit { get; set; }
 
+    /// <summary>Стоимость</summary>
+    public decimal? Price { get; set; }
+
     /// <summary>Плановый срок поставки ТМЦ</summary>
     public DateTime? PlannedDeliveryDate { get; set; }
 

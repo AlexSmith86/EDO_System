@@ -46,11 +46,9 @@ public class DashboardController : ControllerBase
         var totalActiveCount = await _db.TmcRequests
             .CountAsync(r => activeStatuses.Contains(r.Status));
 
-        // 3. Сумма заявок в работе (сумма Quantity * кол-во позиций как метрика)
-        var totalActiveSum = await _db.TmcRequests
-            .Where(r => activeStatuses.Contains(r.Status))
-            .SelectMany(r => r.Items)
-            .SumAsync(i => i.Quantity);
+        // 3. Согласованные заявки
+        var approvedCount = await _db.TmcRequests
+            .CountAsync(r => r.Status == TmcRequestStatus.Completed || r.Status == TmcRequestStatus.Approved);
 
         // 4. Ожидают моего согласования
         var awaitingCount = 0;
@@ -94,7 +92,7 @@ public class DashboardController : ControllerBase
             AwaitingMyApprovalCount = awaitingCount,
             MyActiveRequestsCount = myActiveCount,
             TotalActiveRequestsCount = totalActiveCount,
-            TotalActiveRequestsSum = totalActiveSum,
+            ApprovedCount = approvedCount,
             RequestsByStatus = requestsByStatus
         });
     }

@@ -38,6 +38,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<IWorkflowEngineService, WorkflowEngineService>();
+builder.Services.AddSingleton<TelegramBotService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TelegramBotService>());
 
 builder.Services.AddCors(options =>
 {

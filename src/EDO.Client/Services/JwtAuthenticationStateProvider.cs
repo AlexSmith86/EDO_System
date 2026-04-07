@@ -17,20 +17,28 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        var token = await _localStorage.GetItemAsync("authToken");
-
-        if (string.IsNullOrWhiteSpace(token))
-            return Anonymous;
-
-        var claims = ParseClaimsFromJwt(token);
-        if (claims is null || IsExpired(claims))
+        try
         {
-            await _localStorage.RemoveItemAsync("authToken");
+            var token = await _localStorage.GetItemAsync("authToken");
+
+            if (string.IsNullOrWhiteSpace(token))
+                return Anonymous;
+
+            var claims = ParseClaimsFromJwt(token);
+            if (claims is null || IsExpired(claims))
+            {
+                await _localStorage.RemoveItemAsync("authToken");
+                return Anonymous;
+            }
+
+            var identity = new ClaimsIdentity(claims, "jwt");
+            return new AuthenticationState(new ClaimsPrincipal(identity));
+        }
+        catch
+        {
+            // Any browser storage/interoperability issue should not crash app startup.
             return Anonymous;
         }
-
-        var identity = new ClaimsIdentity(claims, "jwt");
-        return new AuthenticationState(new ClaimsPrincipal(identity));
     }
 
     public async Task MarkUserAsAuthenticated(string token)
@@ -77,7 +85,19 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         if (!long.TryParse(exp, out var unix))
             return false;
 
-        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(unix);
-        return expiresAt <= DateTimeOffset.UtcNow;
+        try
+        {
+            // Some JWT providers store exp in milliseconds.
+            if (unix > 9_999_999_999)
+                unix /= 1000;
+
+            var expiresAt = DateTimeOffset.FromUnixTimeSeconds(unix);
+            return expiresAt <= DateTimeOffset.UtcNow;
+        }
+        catch
+        {
+            // If exp is malformed/out of range, treat token as invalid/expired.
+            return true;
+        }
     }
 }
