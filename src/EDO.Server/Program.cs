@@ -104,7 +104,6 @@ app.UseCors();
 
 // Serve Blazor WASM client static files (for production single-container deployment)
 app.UseBlazorFrameworkFiles();
-app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseAuthentication();
