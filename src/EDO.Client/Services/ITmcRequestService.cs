@@ -153,7 +153,11 @@ public class TmcRequestService : ITmcRequestService
     public async Task<TmcRequestDto?> SubmitDecisionAsync(int id, SubmitDecisionDto dto)
     {
         var response = await _http.PostAsJsonAsync($"api/tmcrequests/{id}/decision", dto);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"{(int)response.StatusCode}: {body}");
+        }
         return await response.Content.ReadFromJsonAsync<TmcRequestDto>();
     }
 

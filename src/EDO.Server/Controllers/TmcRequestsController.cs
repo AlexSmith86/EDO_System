@@ -16,13 +16,15 @@ public class TmcRequestsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IWorkflowEngineService _workflow;
+    private readonly ILogger<TmcRequestsController> _logger;
     private int _totalStages;
     private const string AnyPosition = "Любая должность";
 
-    public TmcRequestsController(AppDbContext db, IWorkflowEngineService workflow)
+    public TmcRequestsController(AppDbContext db, IWorkflowEngineService workflow, ILogger<TmcRequestsController> logger)
     {
         _db = db;
         _workflow = workflow;
+        _logger = logger;
     }
 
     private async Task EnsureTotalStagesLoaded()
@@ -325,62 +327,79 @@ public class TmcRequestsController : ControllerBase
         if (decision == Decision.Rejected && string.IsNullOrWhiteSpace(dto.Comment))
             return BadRequest(new { message = "При отклонении необходимо указать комментарий." });
 
-        var result = await _workflow.ProcessDecisionAsync(new WorkflowDecisionRequest
+        try
         {
-            DocumentId = entity.Id,
-            UserId = userId.Value,
-            CurrentStageId = entity.CurrentStageId ?? 0,
-            Decision = decision,
-            Comment = dto.Comment,
-            WorkflowChainId = entity.WorkflowChainId,
-            CurrentWorkflowStepId = entity.CurrentWorkflowStepId
-        });
+            var user = await _db.Users.FindAsync(userId.Value);
+            _logger.LogInformation(
+                "SubmitDecision: RequestId={RequestId}, UserId={UserId}, UserPosition={Position}, " +
+                "StageId={StageId}, StageName={StageName}, StageRequired={Required}, Decision={Decision}",
+                id, userId.Value, user?.Position,
+                entity.CurrentStageId, entity.CurrentStage?.Name, entity.CurrentStage?.RequiredPosition,
+                dto.Decision);
 
-        if (!result.Success)
-            return BadRequest(new { message = result.Message });
-
-        if (entity.WorkflowChainId.HasValue)
-        {
-            // Кастомная цепочка
-            if (result.IsRejected)
+            var result = await _workflow.ProcessDecisionAsync(new WorkflowDecisionRequest
             {
-                entity.Status = TmcRequestStatus.Rework;
-                entity.CurrentWorkflowStepId = result.NextWorkflowStepId;
+                DocumentId = entity.Id,
+                UserId = userId.Value,
+                CurrentStageId = entity.CurrentStageId ?? 0,
+                Decision = decision,
+                Comment = dto.Comment,
+                WorkflowChainId = entity.WorkflowChainId,
+                CurrentWorkflowStepId = entity.CurrentWorkflowStepId
+            });
+
+            if (!result.Success)
+            {
+                _logger.LogWarning("SubmitDecision failed: {Message}", result.Message);
+                return BadRequest(new { message = result.Message });
             }
-            else if (result.IsCompleted)
+
+            if (entity.WorkflowChainId.HasValue)
             {
-                entity.Status = TmcRequestStatus.Completed;
-                entity.CurrentWorkflowStepId = null;
+                if (result.IsRejected)
+                {
+                    entity.Status = TmcRequestStatus.Rework;
+                    entity.CurrentWorkflowStepId = result.NextWorkflowStepId;
+                }
+                else if (result.IsCompleted)
+                {
+                    entity.Status = TmcRequestStatus.Completed;
+                    entity.CurrentWorkflowStepId = null;
+                }
+                else
+                {
+                    entity.CurrentWorkflowStepId = result.NextWorkflowStepId;
+                }
             }
             else
             {
-                entity.CurrentWorkflowStepId = result.NextWorkflowStepId;
+                if (result.IsRejected)
+                {
+                    entity.Status = TmcRequestStatus.Rework;
+                    entity.CurrentStageId = result.NextStageId;
+                }
+                else if (result.IsCompleted)
+                {
+                    entity.Status = TmcRequestStatus.Completed;
+                    entity.CurrentStageId = null;
+                }
+                else
+                {
+                    entity.CurrentStageId = result.NextStageId;
+                }
             }
+
+            await _db.SaveChangesAsync();
+
+            await EnsureTotalStagesLoaded();
+            var updated = await LoadRequest(entity.Id);
+            return Ok(MapToDto(updated!));
         }
-        else
+        catch (Exception ex)
         {
-            // Стандартный маршрут
-            if (result.IsRejected)
-            {
-                entity.Status = TmcRequestStatus.Rework;
-                entity.CurrentStageId = result.NextStageId;
-            }
-            else if (result.IsCompleted)
-            {
-                entity.Status = TmcRequestStatus.Completed;
-                entity.CurrentStageId = null;
-            }
-            else
-            {
-                entity.CurrentStageId = result.NextStageId;
-            }
+            _logger.LogError(ex, "SubmitDecision exception for RequestId={RequestId}", id);
+            return StatusCode(500, new { message = $"Внутренняя ошибка: {ex.Message}" });
         }
-
-        await _db.SaveChangesAsync();
-
-        await EnsureTotalStagesLoaded();
-        var updated = await LoadRequest(entity.Id);
-        return Ok(MapToDto(updated!));
     }
 
     private int? GetCurrentUserId()

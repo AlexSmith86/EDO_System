@@ -8,8 +8,17 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+var usePostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase);
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (usePostgres)
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -52,16 +61,23 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<EDO.Server.Data.AppDbContext>();
-    try
+    if (usePostgres)
     {
-        context.Database.Migrate();
+        try
+        {
+            context.Database.Migrate();
+        }
+        catch (Exception ex) when (
+            ex.GetType().Name == "PostgresException" ||
+            ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Database.EnsureDeleted();
+            context.Database.Migrate();
+        }
     }
-    catch (Npgsql.PostgresException ex) when (ex.SqlState == "42P07")
+    else
     {
-        // Таблицы уже существуют, но __EFMigrationsHistory рассинхронизирована
-        // (миграции пересоздавались локально). Пересоздаём БД.
-        context.Database.EnsureDeleted();
-        context.Database.Migrate();
+        context.Database.EnsureCreated();
     }
 
     var userRole = context.Roles.FirstOrDefault(r => r.Name == "Пользователь");

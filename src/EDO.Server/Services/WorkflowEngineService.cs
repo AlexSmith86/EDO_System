@@ -1,39 +1,56 @@
 using EDO.Server.Data;
 using EDO.Server.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace EDO.Server.Services;
 
 public class WorkflowEngineService : IWorkflowEngineService
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<WorkflowEngineService> _logger;
 
-    /// <summary>Особое значение RequiredPosition — означает инициатора заявки</summary>
     private const string InitiatorPosition = "Инициатор";
     private const string AnyPosition = "Любая должность";
 
-    public WorkflowEngineService(AppDbContext db)
+    public WorkflowEngineService(AppDbContext db, ILogger<WorkflowEngineService> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     public async Task<bool> CanUserActAsync(int userId, int stageId, int documentId)
     {
         var stage = await _db.ApprovalStages.FindAsync(stageId);
-        if (stage is null) return false;
-
-        var user = await _db.Users.FindAsync(userId);
-        if (user is null) return false;
-
-        // Для этапов "Инициатор" — проверяем, что пользователь является инициатором заявки
-        if (stage.RequiredPosition == InitiatorPosition)
+        if (stage is null)
         {
-            var request = await _db.TmcRequests.FindAsync(documentId);
-            return request is not null && request.InitiatorUserId == userId;
+            _logger.LogWarning("CanUserAct: stage {StageId} not found", stageId);
+            return false;
         }
 
-        // Для остальных этапов — проверяем совпадение должности
-        return string.Equals(user.Position, stage.RequiredPosition, StringComparison.OrdinalIgnoreCase);
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null)
+        {
+            _logger.LogWarning("CanUserAct: user {UserId} not found", userId);
+            return false;
+        }
+
+        if (string.Equals(stage.RequiredPosition, InitiatorPosition, StringComparison.OrdinalIgnoreCase))
+        {
+            var request = await _db.TmcRequests.FindAsync(documentId);
+            var isInitiator = request is not null && request.InitiatorUserId == userId;
+            _logger.LogInformation("CanUserAct: initiator check for user {UserId}, result={Result}", userId, isInitiator);
+            return isInitiator;
+        }
+
+        var match = string.Equals(user.Position, stage.RequiredPosition, StringComparison.OrdinalIgnoreCase);
+        if (!match)
+        {
+            _logger.LogWarning(
+                "CanUserAct: position mismatch. User '{UserPosition}' vs Stage '{StagePosition}' (StageId={StageId})",
+                user.Position, stage.RequiredPosition, stageId);
+        }
+        return match;
     }
 
     public async Task<WorkflowDecisionResult> ProcessDecisionAsync(WorkflowDecisionRequest request)
@@ -62,18 +79,18 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
-        // Проверяем право пользователя действовать на этом этапе
         if (!await CanUserActAsync(request.UserId, request.CurrentStageId, request.DocumentId))
         {
+            var user = await _db.Users.FindAsync(request.UserId);
             return new WorkflowDecisionResult
             {
                 Success = false,
-                Message = "У вас нет прав для согласования на данном этапе. " +
-                          $"Требуемая должность: {currentStage.RequiredPosition}."
+                Message = $"У вас нет прав для согласования на этапе «{currentStage.Name}». " +
+                          $"Требуемая должность: «{currentStage.RequiredPosition}», " +
+                          $"ваша должность: «{user?.Position ?? "не найдена"}»."
             };
         }
 
-        // Записываем решение в историю
         var historyEntry = new ActionHistory
         {
             DocumentId = request.DocumentId,
@@ -85,7 +102,20 @@ public class WorkflowEngineService : IWorkflowEngineService
         };
 
         _db.ActionHistories.Add(historyEntry);
-        await _db.SaveChangesAsync();
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save ActionHistory for DocumentId={DocId}, StageId={StageId}", request.DocumentId, request.CurrentStageId);
+            return new WorkflowDecisionResult
+            {
+                Success = false,
+                Message = $"Ошибка сохранения истории: {ex.InnerException?.Message ?? ex.Message}"
+            };
+        }
 
         // --- ОТКЛОНЕНИЕ ---
         if (request.Decision == Decision.Rejected)
