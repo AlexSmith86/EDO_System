@@ -19,10 +19,15 @@ public class ActionHistory
     /// <summary>Комментарий к решению</summary>
     public string? Comment { get; set; }
 
-    /// <summary>Этап, на котором было принято решение</summary>
-    public int StageId { get; set; }
+    /// <summary>Этап стандартного маршрута (null для кастомных цепочек)</summary>
+    public int? StageId { get; set; }
 
-    public ApprovalStage Stage { get; set; } = null!;
+    public ApprovalStage? Stage { get; set; }
+
+    /// <summary>Шаг кастомной цепочки (null для стандартного маршрута)</summary>
+    public int? WorkflowStepId { get; set; }
+
+    public WorkflowStep? WorkflowStep { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

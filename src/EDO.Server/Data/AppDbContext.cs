@@ -145,6 +145,12 @@ public class AppDbContext : DbContext
             entity.HasOne(h => h.Stage)
                   .WithMany()
                   .HasForeignKey(h => h.StageId)
+                  .IsRequired(false)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(h => h.WorkflowStep)
+                  .WithMany()
+                  .HasForeignKey(h => h.WorkflowStepId)
+                  .IsRequired(false)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(h => h.DocumentId);
         });

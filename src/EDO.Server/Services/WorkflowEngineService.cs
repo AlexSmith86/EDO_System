@@ -176,7 +176,6 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
-        // Проверяем совпадение должности
         var user = await _db.Users.FindAsync(request.UserId);
         if (user is null)
         {
@@ -189,29 +188,42 @@ public class WorkflowEngineService : IWorkflowEngineService
             return new WorkflowDecisionResult
             {
                 Success = false,
-                Message = $"У вас нет прав для согласования на данном шаге. Требуемая должность: {currentStep.TargetPosition}."
+                Message = $"У вас нет прав для согласования на шаге «{currentStep.StepName}». " +
+                          $"Требуемая должность: «{currentStep.TargetPosition}», " +
+                          $"ваша должность: «{user.Position}»."
             };
         }
 
-        // Записываем в историю (используем StageId — ближайший ApprovalStage или создаём запись без него)
-        // Для кастомных цепочек сохраняем StageId = currentStage (из заявки) если есть
         var historyEntry = new ActionHistory
         {
             DocumentId = request.DocumentId,
             UserId = request.UserId,
-            StageId = request.CurrentStageId,
+            StageId = null,
+            WorkflowStepId = currentStep.Id,
             Decision = request.Decision,
             Comment = request.Comment,
             CreatedAt = DateTime.UtcNow
         };
 
         _db.ActionHistories.Add(historyEntry);
-        await _db.SaveChangesAsync();
 
-        // --- ОТКЛОНЕНИЕ ---
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save ActionHistory for custom chain DocumentId={DocId}, StepId={StepId}",
+                request.DocumentId, currentStep.Id);
+            return new WorkflowDecisionResult
+            {
+                Success = false,
+                Message = $"Ошибка сохранения истории: {ex.InnerException?.Message ?? ex.Message}"
+            };
+        }
+
         if (request.Decision == Decision.Rejected)
         {
-            // Возврат на первый шаг цепочки
             var firstStep = await _db.WorkflowSteps
                 .Where(s => s.WorkflowChainId == request.WorkflowChainId!.Value)
                 .OrderBy(s => s.Order)
@@ -227,7 +239,6 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
-        // --- ОДОБРЕНИЕ ---
         var nextStep = await _db.WorkflowSteps
             .Where(s => s.WorkflowChainId == request.WorkflowChainId!.Value
                      && s.Order > currentStep.Order)

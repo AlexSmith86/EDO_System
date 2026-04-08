@@ -457,12 +457,17 @@ public class TmcRequestsController : ControllerBase
             .Where(h => h.DocumentId == requestId)
             .Include(h => h.User)
             .Include(h => h.Stage)
+            .Include(h => h.WorkflowStep)
             .OrderByDescending(h => h.CreatedAt)
             .Select(h => new ApprovalHistoryDto
             {
                 Id = h.Id,
-                StageName = h.Stage.Name,
-                StagePosition = h.Stage.RequiredPosition,
+                StageName = h.Stage != null ? h.Stage.Name
+                          : h.WorkflowStep != null ? h.WorkflowStep.StepName
+                          : "—",
+                StagePosition = h.Stage != null ? h.Stage.RequiredPosition
+                              : h.WorkflowStep != null ? h.WorkflowStep.TargetPosition
+                              : "—",
                 Decision = h.Decision.ToString(),
                 DecisionDisplay = DecisionToRussian(h.Decision),
                 UserName = $"{h.User.LastName} {h.User.FirstName}",
