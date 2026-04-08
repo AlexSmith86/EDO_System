@@ -1,5 +1,6 @@
 using EDO.Server.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace EDO.Server.Data;
 
@@ -53,6 +54,15 @@ public class AppDbContext : DbContext
     public DbSet<TmcSubgroup> TmcSubgroups => Set<TmcSubgroup>();
     public DbSet<WorkflowChain> WorkflowChains => Set<WorkflowChain>();
     public DbSet<WorkflowStep> WorkflowSteps => Set<WorkflowStep>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Глобально: все DateTime → UTC при записи, SpecifyKind(Utc) при чтении
+        configurationBuilder.Properties<DateTime>()
+            .HaveConversion<UtcDateTimeConverter>();
+        configurationBuilder.Properties<DateTime?>()
+            .HaveConversion<UtcNullableDateTimeConverter>();
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -223,4 +233,28 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict);
         });
     }
+}
+
+/// <summary>Конвертер DateTime → UTC для PostgreSQL (timestamp with time zone)</summary>
+public class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
+{
+    public UtcDateTimeConverter()
+        : base(
+            v => v.Kind == DateTimeKind.Utc ? v : DateTime.SpecifyKind(v, DateTimeKind.Utc),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc))
+    { }
+}
+
+/// <summary>Конвертер DateTime? → UTC для PostgreSQL</summary>
+public class UtcNullableDateTimeConverter : ValueConverter<DateTime?, DateTime?>
+{
+    public UtcNullableDateTimeConverter()
+        : base(
+            v => v.HasValue
+                ? (v.Value.Kind == DateTimeKind.Utc ? v : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc))
+                : v,
+            v => v.HasValue
+                ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc)
+                : v)
+    { }
 }
