@@ -17,6 +17,7 @@
 <MudTable Items="@_users" Hover="true" Striped="false" Loading="@_loading" Elevation="2"
           Dense="true" Breakpoint="Breakpoint.Sm">
     <HeaderContent>
+        <MudTh Style="width: 50px;">№</MudTh>
         <MudTh>ФИО</MudTh>
         <MudTh>Должность</MudTh>
         <MudTh>Email</MudTh>
@@ -26,6 +27,7 @@
         <MudTh>Действия</MudTh>
     </HeaderContent>
     <RowTemplate>
+        <MudTd DataLabel="№">@(_users.IndexOf(context) + 1)</MudTd>
         <MudTd DataLabel="ФИО">@context.LastName @context.FirstName @context.MiddleName</MudTd>
         <MudTd DataLabel="Должность">@context.Position</MudTd>
         <MudTd DataLabel="Email">@context.Email</MudTd>
