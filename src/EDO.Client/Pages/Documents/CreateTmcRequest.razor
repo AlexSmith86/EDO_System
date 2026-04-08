@@ -37,13 +37,16 @@ else
                 }
             </MudSelect>
 
-            <MudAutocomplete T="string" @bind-Value="_projectName"
+            <MudAutocomplete T="string" Value="_projectName"
+                             ValueChanged="@OnProjectChanged"
+                             TextChanged="@OnProjectTextChanged"
                              Label="Проект" Variant="Variant.Outlined"
                              Class="mb-4"
                              SearchFunc="@SearchProjects"
                              CoerceText="false"
                              CoerceValue="false"
-                             Clearable="true" />
+                             Clearable="true"
+                             DebounceInterval="300" />
 
             <MudText Typo="Typo.subtitle1" Class="mb-3" Style="font-weight: 600;">Позиции заявки</MudText>
 
@@ -335,6 +338,9 @@ else
         catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
         finally { _saving = false; }
     }
+
+    private void OnProjectChanged(string? value) => _projectName = value;
+    private void OnProjectTextChanged(string? text) => _projectName = text;
 
     private void GoBack() => Navigation.NavigateTo("/documents/tmcrequests");
 
