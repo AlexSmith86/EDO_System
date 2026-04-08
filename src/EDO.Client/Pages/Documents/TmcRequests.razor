@@ -115,7 +115,8 @@
             </MudTooltip>
         </MudTd>
         <MudTd DataLabel="Действия">
-            @if ((context.Status == "Draft" || context.Status == "Rework") && _isAdmin)
+            @{ var isOwner = context.InitiatorUserId == _currentUserId; }
+            @if ((context.Status == "Draft" || context.Status == "Rework") && (_isAdmin || isOwner))
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => Navigation.NavigateTo($"/documents/tmcrequests/edit/{context.Id}"))" />
@@ -143,6 +144,7 @@
     private string? _searchText;
     private string? _statusFilter;
     private bool _isAdmin;
+    private int _currentUserId;
 
     private IEnumerable<TmcRequestDto> FilteredItems
     {
@@ -165,6 +167,8 @@
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _isAdmin = authState.User.IsInRole("Администратор");
+        var idClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        _ = int.TryParse(idClaim, out _currentUserId);
         await Load();
     }
 

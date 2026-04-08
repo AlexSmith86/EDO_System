@@ -181,12 +181,19 @@ public class TmcRequestsController : ControllerBase
     [HttpPost("{id}/send")]
     public async Task<ActionResult<TmcRequestDto>> Send(int id)
     {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
         var entity = await _db.TmcRequests
             .Include(r => r.Items)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (entity is null)
             return NotFound(new { message = "Заявка не найдена." });
+
+        var isAdmin = User.IsInRole("Администратор");
+        if (entity.InitiatorUserId != userId.Value && !isAdmin)
+            return Forbid();
 
         if (entity.Status != TmcRequestStatus.Draft && entity.Status != TmcRequestStatus.Rework)
             return BadRequest(new { message = "Отправить можно только заявку в статусе 'Черновик' или 'На доработке'." });
