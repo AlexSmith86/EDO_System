@@ -52,7 +52,17 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<EDO.Server.Data.AppDbContext>();
-    context.Database.Migrate();
+    try
+    {
+        context.Database.Migrate();
+    }
+    catch (Npgsql.PostgresException ex) when (ex.SqlState == "42P07")
+    {
+        // Таблицы уже существуют, но __EFMigrationsHistory рассинхронизирована
+        // (миграции пересоздавались локально). Пересоздаём БД.
+        context.Database.EnsureDeleted();
+        context.Database.Migrate();
+    }
 
     var userRole = context.Roles.FirstOrDefault(r => r.Name == "Пользователь");
     if (userRole == null)
