@@ -7,6 +7,39 @@ public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        FixDateTimeKinds();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        FixDateTimeKinds();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// PostgreSQL (Npgsql) требует DateTimeKind.Utc для timestamp with time zone.
+    /// Конвертируем все Unspecified/Local DateTime в UTC перед записью.
+    /// </summary>
+    private void FixDateTimeKinds()
+    {
+        foreach (var entry in ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified))
+        {
+            foreach (var prop in entry.Properties)
+            {
+                if (prop.CurrentValue is DateTime dt && dt.Kind != DateTimeKind.Utc)
+                {
+                    prop.CurrentValue = dt.Kind == DateTimeKind.Unspecified
+                        ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+                        : dt.ToUniversalTime();
+                }
+            }
+        }
+    }
+
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Tmc> Tmcs => Set<Tmc>();
