@@ -379,6 +379,9 @@ namespace EDO.Server.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("GroupId");

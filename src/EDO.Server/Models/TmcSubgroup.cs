@@ -14,6 +14,9 @@ public class TmcSubgroup
     /// <summary>Заголовок-разделитель (не выбираемый)</summary>
     public bool IsHeader { get; set; }
 
+    /// <summary>Порядок сортировки внутри группы</summary>
+    public int SortOrder { get; set; }
+
     /// <summary>Группа-родитель</summary>
     public int GroupId { get; set; }
 

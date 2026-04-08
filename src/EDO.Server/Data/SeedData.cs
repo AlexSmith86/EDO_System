@@ -6,12 +6,17 @@ public static class SeedData
 {
     public static void SeedCategories(AppDbContext context)
     {
-        // Пересоздаём если нет группы "4" (новая структура)
-        if (context.TmcGroups.Any() && !context.TmcGroups.Any(g => g.Code == "4"))
+        // Пересоздаём если нет SortOrder (все нули) или нет группы "4"
+        if (context.TmcGroups.Any())
         {
-            context.TmcSubgroups.RemoveRange(context.TmcSubgroups);
-            context.TmcGroups.RemoveRange(context.TmcGroups);
-            context.SaveChanges();
+            var needReseed = !context.TmcGroups.Any(g => g.Code == "4")
+                          || (context.TmcSubgroups.Any() && !context.TmcSubgroups.Any(s => s.SortOrder > 0));
+            if (needReseed)
+            {
+                context.TmcSubgroups.RemoveRange(context.TmcSubgroups);
+                context.TmcGroups.RemoveRange(context.TmcGroups);
+                context.SaveChanges();
+            }
         }
 
         if (context.TmcGroups.Any()) return;
@@ -24,6 +29,7 @@ public static class SeedData
             context.TmcGroups.Add(group);
             context.SaveChanges();
 
+            int sortOrder = 0;
             foreach (var (subCode, subName, isHeader) in subs)
             {
                 context.TmcSubgroups.Add(new TmcSubgroup
@@ -31,7 +37,8 @@ public static class SeedData
                     Code = subCode,
                     Name = subName,
                     GroupId = group.Id,
-                    IsHeader = isHeader
+                    IsHeader = isHeader,
+                    SortOrder = sortOrder++
                 });
             }
             context.SaveChanges();

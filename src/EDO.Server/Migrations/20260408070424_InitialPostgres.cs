@@ -163,6 +163,7 @@ namespace EDO.Server.Migrations
                     Code = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: false),
                     Name = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                     IsHeader = table.Column<bool>(type: "boolean", nullable: false),
+                    SortOrder = table.Column<int>(type: "integer", nullable: false),
                     GroupId = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EDO.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260407142645_InitialPostgres")]
+    [Migration("20260408070424_InitialPostgres")]
     partial class InitialPostgres
     {
         /// <inheritdoc />
@@ -381,6 +381,9 @@ namespace EDO.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

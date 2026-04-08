@@ -39,7 +39,7 @@ public class CategoriesController : ControllerBase
     {
         var items = await _db.TmcSubgroups
             .Where(s => s.GroupId == id)
-            .OrderBy(s => s.Code)
+            .OrderBy(s => s.SortOrder)
             .Select(s => new TmcSubgroupDto
             {
                 Id = s.Id,
