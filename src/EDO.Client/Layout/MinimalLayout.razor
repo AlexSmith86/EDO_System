@@ -1,6 +1,6 @@
 @inherits LayoutComponentBase
 
-<MudThemeProvider @bind-IsDarkMode="_isDarkMode" Theme="_theme" />
+<MudThemeProvider @bind-IsDarkMode="_isDarkMode" Theme="AppTheme.Dark" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -9,16 +9,4 @@
 
 @code {
     private bool _isDarkMode = true;
-
-    private readonly MudTheme _theme = new()
-    {
-        PaletteDark = new PaletteDark
-        {
-            Primary = Colors.Yellow.Default,
-            Secondary = Colors.Gray.Lighten1,
-            Surface = "#1e1e2f",
-            Background = "#121212",
-            AppbarBackground = "#1e1e2f"
-        }
-    };
 }
