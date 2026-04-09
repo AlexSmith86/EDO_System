@@ -17,7 +17,12 @@ public class TmcSubgroupDto
     public string Name { get; set; } = string.Empty;
     public int GroupId { get; set; }
     public bool IsHeader { get; set; }
-    public string DisplayName => IsHeader ? Name : $"{Code}. {Name}";
+
+    /// <summary>Клиентский флаг: синтетический пункт "Иное" (не приходит с бэкенда).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsOther { get; set; }
+
+    public string DisplayName => IsOther ? Name : (IsHeader ? Name : $"{Code}. {Name}");
 }
 
 public interface ICategoryService

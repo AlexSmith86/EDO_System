@@ -240,6 +240,7 @@ else
                             if (row.SelectedGroup != null)
                             {
                                 row.Subgroups = await CategoryService.GetSubgroupsAsync(row.SelectedGroup.Id);
+                                AppendOtherOption(row.Subgroups);
                                 if (i.SubgroupId.HasValue)
                                     row.SelectedSubgroup = row.Subgroups.FirstOrDefault(s => s.Id == i.SubgroupId.Value);
                             }
@@ -271,6 +272,18 @@ else
         item.Subgroups = group != null
             ? await CategoryService.GetSubgroupsAsync(group.Id)
             : new();
+        AppendOtherOption(item.Subgroups);
+    }
+
+    private static void AppendOtherOption(List<TmcSubgroupDto> subgroups)
+    {
+        if (subgroups.Count == 0) return;
+        subgroups.Add(new TmcSubgroupDto
+        {
+            Id = 0,
+            Name = "Иное",
+            IsOther = true
+        });
     }
 
     private async Task Save()
@@ -299,7 +312,7 @@ else
             var dtoItems = _items.Select(i => new CreateTmcRequestItemDto
             {
                 GroupId = i.SelectedGroup?.Id,
-                SubgroupId = i.SelectedSubgroup?.Id,
+                SubgroupId = i.SelectedSubgroup is { IsOther: false } ? i.SelectedSubgroup.Id : null,
                 Name = i.Name,
                 Quantity = i.Quantity,
                 Unit = i.Unit,
