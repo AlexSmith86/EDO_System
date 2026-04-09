@@ -1,6 +1,7 @@
 @using EDO.Client.Services
 @inject ITmcRequestService RequestService
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudDialog>
     <DialogContent>
@@ -106,19 +107,19 @@
             </MudList>
         }
 
-        <MudTextField @bind-Value="_comment" Label="Комментарий" Variant="Variant.Outlined"
+        <MudTextField @bind-Value="_comment" Label="Комментарий (для согласования)" Variant="Variant.Outlined"
                       Lines="3" Class="mt-4"
-                      HelperText="Обязательно при отклонении" />
+                      HelperText="Комментарий к согласованию. При отклонении причина указывается в отдельном окне." />
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" Style="text-transform: none;">Отмена</MudButton>
         <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(() => Submit("Rejected"))"
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="OpenRejectDialog"
                    Disabled="@_processing" StartIcon="@Icons.Material.Filled.Close"
                    Style="text-transform: none;">
-            Отклонить
+            Отклонить / На доработку
         </MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => Submit("Approved"))"
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => Approve())"
                    Disabled="@_processing" StartIcon="@Icons.Material.Filled.Check"
                    Style="text-transform: none;">
             Согласовать
@@ -142,28 +143,39 @@
         _ => Color.Info
     };
 
-    private async Task Submit(string decision)
+    private async Task Approve()
     {
-        if (decision == "Rejected" && string.IsNullOrWhiteSpace(_comment))
-        {
-            Snackbar.Add("Укажите причину отклонения", Severity.Warning);
-            return;
-        }
-
         _processing = true;
         try
         {
             await RequestService.SubmitDecisionAsync(Request.Id, new SubmitDecisionDto
             {
-                Decision = decision,
+                Decision = "Approved",
                 Comment = _comment
             });
 
-            var msg = decision == "Approved" ? "Заявка согласована" : "Заявка отклонена";
-            Snackbar.Add(msg, decision == "Approved" ? Severity.Success : Severity.Info);
+            Snackbar.Add("Заявка согласована", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }
         catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
         finally { _processing = false; }
+    }
+
+    private async Task OpenRejectDialog()
+    {
+        var parameters = new DialogParameters<RejectRequestDialog>
+        {
+            { x => x.Request, Request }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<RejectRequestDialog>(
+            $"Отклонение заявки №{Request.Id}", parameters, options);
+        var result = await dialog.Result;
+
+        // Если отклонение прошло успешно — закрываем родительский диалог тоже
+        if (result is { Canceled: false })
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
     }
 }

@@ -103,4 +103,36 @@ public class SubmitDecisionDto
     public string Decision { get; set; } = string.Empty;
 
     public string? Comment { get; set; }
+
+    /// <summary>Целевой ApprovalStage для возврата при отклонении (стандартный маршрут).
+    /// Если null — возврат к инициатору (OrderSequence = 0).</summary>
+    public int? TargetStageId { get; set; }
+
+    /// <summary>Целевой WorkflowStep для возврата при отклонении (кастомная цепочка).
+    /// Если null — возврат к инициатору (CurrentWorkflowStepId = null, статус Rework).</summary>
+    public int? TargetWorkflowStepId { get; set; }
+}
+
+/// <summary>Возможный целевой этап/шаг для возврата заявки при отклонении</summary>
+public class ReturnTargetDto
+{
+    /// <summary>Id ApprovalStage (стандартный маршрут). Null для шагов кастомной цепочки и
+    /// для синтетической записи «Инициатор» в кастомной цепочке.</summary>
+    public int? StageId { get; set; }
+
+    /// <summary>Id WorkflowStep (кастомная цепочка). Null для стандартного маршрута и для
+    /// синтетической записи «Инициатор» в кастомной цепочке.</summary>
+    public int? WorkflowStepId { get; set; }
+
+    /// <summary>Название этапа/шага</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Требуемая должность</summary>
+    public string Position { get; set; } = string.Empty;
+
+    /// <summary>Порядковый номер этапа/шага (для сортировки)</summary>
+    public int Order { get; set; }
+
+    /// <summary>true — это возврат к инициатору (пункт «Инициатор»)</summary>
+    public bool IsInitiator { get; set; }
 }

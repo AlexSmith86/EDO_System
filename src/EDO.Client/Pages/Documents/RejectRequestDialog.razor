@@ -1,0 +1,151 @@
+@using EDO.Client.Services
+@inject ITmcRequestService RequestService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Выберите этап, на который нужно вернуть заявку, и укажите причину отклонения.
+        </MudText>
+
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-3" />
+        }
+        else if (_targets.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning">
+                Нет доступных этапов для возврата.
+            </MudAlert>
+        }
+        else
+        {
+            <MudSelect T="ReturnTargetKey"
+                       Value="_selectedKey"
+                       ValueChanged="@OnTargetChanged"
+                       Label="Вернуть на этап"
+                       Variant="Variant.Outlined"
+                       Required="true"
+                       RequiredError="Выберите этап для возврата"
+                       AnchorOrigin="Origin.BottomCenter"
+                       Class="mb-3">
+                @foreach (var t in _targets)
+                {
+                    <MudSelectItem T="ReturnTargetKey" Value="@KeyOf(t)">
+                        @BuildLabel(t)
+                    </MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        <MudTextField @bind-Value="_comment"
+                      Label="Причина отклонения (комментарий)"
+                      Variant="Variant.Outlined"
+                      Lines="3"
+                      Required="true"
+                      RequiredError="Комментарий обязателен при отклонении"
+                      Immediate="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none;">Отмена</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Error"
+                   OnClick="Submit"
+                   Disabled="@(_processing || _loading || !CanSubmit())"
+                   StartIcon="@Icons.Material.Filled.Close"
+                   Style="text-transform: none;">
+            Отклонить / На доработку
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public TmcRequestDto Request { get; set; } = null!;
+
+    private List<ReturnTargetDto> _targets = new();
+    private ReturnTargetKey _selectedKey;
+    private string? _comment;
+    private bool _loading = true;
+    private bool _processing;
+
+    /// <summary>Уникальный ключ пункта в MudSelect — комбинация StageId/WorkflowStepId
+    /// (оба null → синтетический «Инициатор» для кастомной цепочки).</summary>
+    public readonly record struct ReturnTargetKey(int? StageId, int? WorkflowStepId);
+
+    private static ReturnTargetKey KeyOf(ReturnTargetDto t) =>
+        new(t.StageId, t.WorkflowStepId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _targets = await RequestService.GetReturnTargetsAsync(Request.Id);
+            if (_targets.Count > 0)
+                _selectedKey = KeyOf(_targets[0]); // по умолчанию — первый (самый ранний)
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Не удалось загрузить этапы возврата: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OnTargetChanged(ReturnTargetKey key) => _selectedKey = key;
+
+    private bool CanSubmit() =>
+        _targets.Count > 0
+        && !string.IsNullOrWhiteSpace(_comment)
+        && _targets.Any(t => KeyOf(t).Equals(_selectedKey));
+
+    private static string BuildLabel(ReturnTargetDto t)
+    {
+        if (t.IsInitiator && t.StageId is null && t.WorkflowStepId is null)
+            return "Инициатор";
+        return $"{t.Name} ({t.Position})";
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        if (!CanSubmit())
+        {
+            Snackbar.Add("Заполните обязательные поля", Severity.Warning);
+            return;
+        }
+
+        var target = _targets.First(t => KeyOf(t).Equals(_selectedKey));
+
+        _processing = true;
+        try
+        {
+            await RequestService.SubmitDecisionAsync(Request.Id, new SubmitDecisionDto
+            {
+                Decision = "Rejected",
+                Comment = _comment,
+                TargetStageId = target.StageId,
+                TargetWorkflowStepId = target.WorkflowStepId
+            });
+
+            var msg = target.IsInitiator
+                ? "Заявка возвращена инициатору"
+                : $"Заявка возвращена на этап «{target.Name}»";
+            Snackbar.Add(msg, Severity.Info);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+}

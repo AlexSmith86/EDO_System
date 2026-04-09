@@ -85,6 +85,24 @@ public class SubmitDecisionDto
 {
     public string Decision { get; set; } = string.Empty;
     public string? Comment { get; set; }
+
+    /// <summary>Для отклонения стандартного маршрута — Id целевого ApprovalStage.
+    /// Null = возврат к инициатору (OrderSequence = 0).</summary>
+    public int? TargetStageId { get; set; }
+
+    /// <summary>Для отклонения кастомной цепочки — Id целевого WorkflowStep.
+    /// Null = возврат к инициатору.</summary>
+    public int? TargetWorkflowStepId { get; set; }
+}
+
+public class ReturnTargetDto
+{
+    public int? StageId { get; set; }
+    public int? WorkflowStepId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Position { get; set; } = string.Empty;
+    public int Order { get; set; }
+    public bool IsInitiator { get; set; }
 }
 
 public interface ITmcRequestService
@@ -97,6 +115,7 @@ public interface ITmcRequestService
     Task<TmcRequestDto?> UpdateAsync(int id, UpdateTmcRequestDto dto);
     Task<TmcRequestDto?> SendAsync(int id);
     Task<TmcRequestDto?> SubmitDecisionAsync(int id, SubmitDecisionDto dto);
+    Task<List<ReturnTargetDto>> GetReturnTargetsAsync(int id);
     Task DeleteAsync(int id);
 }
 
@@ -159,6 +178,12 @@ public class TmcRequestService : ITmcRequestService
             throw new HttpRequestException($"{(int)response.StatusCode}: {body}");
         }
         return await response.Content.ReadFromJsonAsync<TmcRequestDto>();
+    }
+
+    public async Task<List<ReturnTargetDto>> GetReturnTargetsAsync(int id)
+    {
+        return await _http.GetFromJsonAsync<List<ReturnTargetDto>>($"api/tmcrequests/{id}/return-targets")
+               ?? new List<ReturnTargetDto>();
     }
 
     public async Task DeleteAsync(int id)

@@ -308,6 +308,76 @@ public class TmcRequestsController : ControllerBase
         return Ok(result.OrderByDescending(r => r.CreatedAt).ToList());
     }
 
+    /// <summary>Список этапов/шагов, на которые можно вернуть заявку при отклонении.
+    /// Возвращает только пройденные этапы. Для кастомных цепочек последним пунктом
+    /// идёт синтетический «Инициатор» (оба Id = null).</summary>
+    [HttpGet("{id}/return-targets")]
+    public async Task<ActionResult<List<ReturnTargetDto>>> GetReturnTargets(int id)
+    {
+        var entity = await _db.TmcRequests
+            .Include(r => r.CurrentStage)
+            .Include(r => r.CurrentWorkflowStep)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (entity is null)
+            return NotFound(new { message = "Заявка не найдена." });
+
+        if ((entity.Status != TmcRequestStatus.InApproval && entity.Status != TmcRequestStatus.Rework)
+            || (entity.CurrentStageId is null && entity.CurrentWorkflowStepId is null))
+            return BadRequest(new { message = "Заявка не находится на согласовании." });
+
+        var result = new List<ReturnTargetDto>();
+
+        if (entity.WorkflowChainId.HasValue && entity.CurrentWorkflowStep is not null)
+        {
+            // Кастомная цепочка: все шаги с Order < текущего
+            var steps = await _db.WorkflowSteps
+                .Where(s => s.WorkflowChainId == entity.WorkflowChainId.Value
+                         && s.Order < entity.CurrentWorkflowStep.Order)
+                .OrderBy(s => s.Order)
+                .ToListAsync();
+
+            result.AddRange(steps.Select(s => new ReturnTargetDto
+            {
+                WorkflowStepId = s.Id,
+                Name = s.StepName,
+                Position = s.TargetPosition,
+                Order = s.Order,
+                IsInitiator = false
+            }));
+
+            // Синтетический пункт «Инициатор» — оба Id null
+            result.Add(new ReturnTargetDto
+            {
+                StageId = null,
+                WorkflowStepId = null,
+                Name = "Инициатор",
+                Position = "Инициатор",
+                Order = int.MaxValue,
+                IsInitiator = true
+            });
+        }
+        else if (entity.CurrentStage is not null)
+        {
+            // Стандартный маршрут: все этапы с OrderSequence < текущего
+            var stages = await _db.ApprovalStages
+                .Where(s => s.OrderSequence < entity.CurrentStage.OrderSequence)
+                .OrderBy(s => s.OrderSequence)
+                .ToListAsync();
+
+            result.AddRange(stages.Select(s => new ReturnTargetDto
+            {
+                StageId = s.Id,
+                Name = s.Name,
+                Position = s.RequiredPosition,
+                Order = s.OrderSequence,
+                IsInitiator = s.OrderSequence == 0
+            }));
+        }
+
+        return Ok(result);
+    }
+
     /// <summary>Принять решение по заявке (Approve / Reject)</summary>
     [HttpPost("{id}/decision")]
     public async Task<ActionResult<TmcRequestDto>> SubmitDecision(int id, [FromBody] SubmitDecisionDto dto)
@@ -352,7 +422,9 @@ public class TmcRequestsController : ControllerBase
                 Decision = decision,
                 Comment = dto.Comment,
                 WorkflowChainId = entity.WorkflowChainId,
-                CurrentWorkflowStepId = entity.CurrentWorkflowStepId
+                CurrentWorkflowStepId = entity.CurrentWorkflowStepId,
+                TargetStageId = dto.TargetStageId,
+                TargetWorkflowStepId = dto.TargetWorkflowStepId
             });
 
             if (!result.Success)
@@ -365,7 +437,10 @@ public class TmcRequestsController : ControllerBase
             {
                 if (result.IsRejected)
                 {
-                    entity.Status = TmcRequestStatus.Rework;
+                    // Rework — только при возврате к инициатору; иначе остаёмся на согласовании у предыдущего шага
+                    entity.Status = result.IsReturnToInitiator
+                        ? TmcRequestStatus.Rework
+                        : TmcRequestStatus.InApproval;
                     entity.CurrentWorkflowStepId = result.NextWorkflowStepId;
                 }
                 else if (result.IsCompleted)
@@ -382,7 +457,9 @@ public class TmcRequestsController : ControllerBase
             {
                 if (result.IsRejected)
                 {
-                    entity.Status = TmcRequestStatus.Rework;
+                    entity.Status = result.IsReturnToInitiator
+                        ? TmcRequestStatus.Rework
+                        : TmcRequestStatus.InApproval;
                     entity.CurrentStageId = result.NextStageId;
                 }
                 else if (result.IsCompleted)
@@ -488,14 +565,26 @@ public class TmcRequestsController : ControllerBase
         int stageOrder = r.CurrentStage?.OrderSequence ?? 0;
         int total = totalStages;
 
-        if (r.WorkflowChainId.HasValue && r.CurrentWorkflowStep is not null)
+        if (r.WorkflowChainId.HasValue)
         {
-            stageName = r.CurrentWorkflowStep.StepName;
-            stagePosition = r.CurrentWorkflowStep.TargetPosition;
-            stageDescription = null;
-            stageOrder = r.CurrentWorkflowStep.Order;
-            // TotalStages для кастомных цепочек — количество шагов в цепочке
+            // Общий размер цепочки — количество шагов в WorkflowChain
             total = r.WorkflowChain?.Steps?.Count ?? 0;
+
+            if (r.CurrentWorkflowStep is not null)
+            {
+                stageName = r.CurrentWorkflowStep.StepName;
+                stagePosition = r.CurrentWorkflowStep.TargetPosition;
+                stageDescription = null;
+                stageOrder = r.CurrentWorkflowStep.Order;
+            }
+            else
+            {
+                // Кастомная цепочка, шаг = null → возврат инициатору (после Rejected)
+                stageName = "Инициатор";
+                stagePosition = "Инициатор";
+                stageDescription = null;
+                stageOrder = 0;
+            }
         }
 
         return new TmcRequestDto

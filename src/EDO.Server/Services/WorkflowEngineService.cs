@@ -19,6 +19,17 @@ public class WorkflowEngineService : IWorkflowEngineService
         _logger = logger;
     }
 
+    private static string BuildReturnComment(string targetName, string targetPosition, string? userComment)
+    {
+        var header = string.IsNullOrEmpty(targetPosition)
+            ? $"[Возврат на этап: «{targetName}»]"
+            : $"[Возврат на этап: «{targetName}» ({targetPosition})]";
+
+        return string.IsNullOrWhiteSpace(userComment)
+            ? header
+            : $"{header} {userComment}";
+    }
+
     public async Task<bool> CanUserActAsync(int userId, int stageId, int documentId)
     {
         var stage = await _db.ApprovalStages.FindAsync(stageId);
@@ -91,13 +102,69 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
+        // --- ОТКЛОНЕНИЕ: сначала определяем и валидируем целевой этап возврата ---
+        ApprovalStage? targetStage = null;
+        bool isReturnToInitiator = false;
+
+        if (request.Decision == Decision.Rejected)
+        {
+            if (request.TargetStageId.HasValue)
+            {
+                targetStage = await _db.ApprovalStages
+                    .FirstOrDefaultAsync(s => s.Id == request.TargetStageId.Value);
+
+                if (targetStage is null)
+                {
+                    return new WorkflowDecisionResult
+                    {
+                        Success = false,
+                        Message = $"Целевой этап возврата (Id={request.TargetStageId}) не найден."
+                    };
+                }
+
+                // Целевой этап должен быть ПРОЙДЕННЫМ (OrderSequence строго меньше текущего)
+                if (targetStage.OrderSequence >= currentStage.OrderSequence)
+                {
+                    return new WorkflowDecisionResult
+                    {
+                        Success = false,
+                        Message = "Нельзя вернуть заявку на текущий или последующий этап — " +
+                                  "доступны только уже пройденные этапы."
+                    };
+                }
+            }
+            else
+            {
+                // TargetStageId не задан — возврат к инициатору (OrderSequence = 0)
+                targetStage = await _db.ApprovalStages
+                    .Where(s => s.OrderSequence == 0)
+                    .FirstOrDefaultAsync();
+
+                if (targetStage is null)
+                {
+                    return new WorkflowDecisionResult
+                    {
+                        Success = false,
+                        Message = "Не найден этап инициатора (OrderSequence = 0)."
+                    };
+                }
+            }
+
+            isReturnToInitiator = targetStage.OrderSequence == 0;
+        }
+
+        // Формируем комментарий для истории — для отклонения указываем целевой этап
+        var historyComment = (request.Decision == Decision.Rejected && targetStage is not null)
+            ? BuildReturnComment(targetStage.Name, targetStage.RequiredPosition, request.Comment)
+            : request.Comment;
+
         var historyEntry = new ActionHistory
         {
             DocumentId = request.DocumentId,
             UserId = request.UserId,
             StageId = request.CurrentStageId,
             Decision = request.Decision,
-            Comment = request.Comment,
+            Comment = historyComment,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -117,20 +184,19 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
-        // --- ОТКЛОНЕНИЕ ---
+        // --- ОТКЛОНЕНИЕ: возврат результата ---
         if (request.Decision == Decision.Rejected)
         {
-            var stageZero = await _db.ApprovalStages
-                .Where(s => s.OrderSequence == 0)
-                .FirstOrDefaultAsync();
-
             return new WorkflowDecisionResult
             {
                 Success = true,
                 IsRejected = true,
+                IsReturnToInitiator = isReturnToInitiator,
                 IsCompleted = false,
-                NextStageId = stageZero?.Id,
-                Message = "Заявка отклонена и возвращена инициатору на доработку."
+                NextStageId = targetStage!.Id,
+                Message = isReturnToInitiator
+                    ? "Заявка отклонена и возвращена инициатору на доработку."
+                    : $"Заявка возвращена на этап: «{targetStage.Name}» ({targetStage.RequiredPosition})."
             };
         }
 
@@ -194,6 +260,65 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
+        // --- ОТКЛОНЕНИЕ: определяем и валидируем целевой шаг возврата ---
+        WorkflowStep? targetStep = null;
+        bool isReturnToInitiator = false;
+        string? returnTargetDisplayName = null;
+        string? returnTargetPosition = null;
+
+        if (request.Decision == Decision.Rejected)
+        {
+            if (request.TargetWorkflowStepId.HasValue)
+            {
+                targetStep = await _db.WorkflowSteps
+                    .FirstOrDefaultAsync(s => s.Id == request.TargetWorkflowStepId.Value);
+
+                if (targetStep is null)
+                {
+                    return new WorkflowDecisionResult
+                    {
+                        Success = false,
+                        Message = $"Целевой шаг возврата (Id={request.TargetWorkflowStepId}) не найден."
+                    };
+                }
+
+                // Должен принадлежать той же цепочке
+                if (targetStep.WorkflowChainId != request.WorkflowChainId!.Value)
+                {
+                    return new WorkflowDecisionResult
+                    {
+                        Success = false,
+                        Message = "Целевой шаг принадлежит другой цепочке согласования."
+                    };
+                }
+
+                // Должен быть ПРОЙДЕННЫМ (Order строго меньше текущего)
+                if (targetStep.Order >= currentStep.Order)
+                {
+                    return new WorkflowDecisionResult
+                    {
+                        Success = false,
+                        Message = "Нельзя вернуть заявку на текущий или последующий шаг — " +
+                                  "доступны только уже пройденные шаги."
+                    };
+                }
+
+                returnTargetDisplayName = targetStep.StepName;
+                returnTargetPosition = targetStep.TargetPosition;
+            }
+            else
+            {
+                // TargetWorkflowStepId не задан — возврат к инициатору
+                isReturnToInitiator = true;
+                returnTargetDisplayName = "Инициатор";
+                returnTargetPosition = "Инициатор";
+            }
+        }
+
+        var historyComment = (request.Decision == Decision.Rejected && returnTargetDisplayName is not null)
+            ? BuildReturnComment(returnTargetDisplayName, returnTargetPosition ?? "", request.Comment)
+            : request.Comment;
+
         var historyEntry = new ActionHistory
         {
             DocumentId = request.DocumentId,
@@ -201,7 +326,7 @@ public class WorkflowEngineService : IWorkflowEngineService
             StageId = null,
             WorkflowStepId = currentStep.Id,
             Decision = request.Decision,
-            Comment = request.Comment,
+            Comment = historyComment,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -224,18 +349,16 @@ public class WorkflowEngineService : IWorkflowEngineService
 
         if (request.Decision == Decision.Rejected)
         {
-            var firstStep = await _db.WorkflowSteps
-                .Where(s => s.WorkflowChainId == request.WorkflowChainId!.Value)
-                .OrderBy(s => s.Order)
-                .FirstOrDefaultAsync();
-
             return new WorkflowDecisionResult
             {
                 Success = true,
                 IsRejected = true,
+                IsReturnToInitiator = isReturnToInitiator,
                 IsCompleted = false,
-                NextWorkflowStepId = firstStep?.Id,
-                Message = "Заявка отклонена и возвращена на первый шаг."
+                NextWorkflowStepId = targetStep?.Id,
+                Message = isReturnToInitiator
+                    ? "Заявка отклонена и возвращена инициатору на доработку."
+                    : $"Заявка возвращена на шаг: «{targetStep!.StepName}» ({targetStep.TargetPosition})."
             };
         }
 
