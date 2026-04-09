@@ -131,6 +131,16 @@
     </MudTabPanel>
 </MudTabs>
 
+<style>
+    .mud-timeline-item:first-child .mud-timeline-item-dot::before {
+        display: none !important;
+    }
+
+    .mud-timeline-item:last-child .mud-timeline-item-dot::after {
+        display: none !important;
+    }
+</style>
+
 @code {
     private List<ApprovalStageDto> _stages = new();
     private List<WorkflowChainDto> _chains = new();
