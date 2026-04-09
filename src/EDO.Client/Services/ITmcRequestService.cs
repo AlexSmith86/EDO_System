@@ -105,6 +105,28 @@ public class ReturnTargetDto
     public bool IsInitiator { get; set; }
 }
 
+public class SendRequestDto
+{
+    /// <summary>Id целевого ApprovalStage для стандартного маршрута.
+    /// Null — стартуем с первого (OrderSequence = 1).</summary>
+    public int? TargetStageId { get; set; }
+
+    /// <summary>Id целевого WorkflowStep для кастомной цепочки.
+    /// Null — стартуем с первого шага цепочки.</summary>
+    public int? TargetWorkflowStepId { get; set; }
+}
+
+public class ForwardTargetDto
+{
+    public int? StageId { get; set; }
+    public int? WorkflowStepId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Position { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int Order { get; set; }
+    public bool IsDefault { get; set; }
+}
+
 public interface ITmcRequestService
 {
     Task<List<TmcRequestDto>> GetMyAsync();
@@ -113,7 +135,8 @@ public interface ITmcRequestService
     Task<TmcRequestDto?> GetByIdAsync(int id);
     Task<TmcRequestDto?> CreateAsync(CreateTmcRequestDto dto);
     Task<TmcRequestDto?> UpdateAsync(int id, UpdateTmcRequestDto dto);
-    Task<TmcRequestDto?> SendAsync(int id);
+    Task<TmcRequestDto?> SendAsync(int id, SendRequestDto? dto = null);
+    Task<List<ForwardTargetDto>> GetForwardTargetsAsync(int id);
     Task<TmcRequestDto?> SubmitDecisionAsync(int id, SubmitDecisionDto dto);
     Task<List<ReturnTargetDto>> GetReturnTargetsAsync(int id);
     Task DeleteAsync(int id);
@@ -152,11 +175,22 @@ public class TmcRequestService : ITmcRequestService
         return await response.Content.ReadFromJsonAsync<TmcRequestDto>();
     }
 
-    public async Task<TmcRequestDto?> SendAsync(int id)
+    public async Task<TmcRequestDto?> SendAsync(int id, SendRequestDto? dto = null)
     {
-        var response = await _http.PostAsync($"api/tmcrequests/{id}/send", null);
-        response.EnsureSuccessStatusCode();
+        // Всегда отправляем JSON-тело — бэкенд принимает DTO как необязательное тело
+        var response = await _http.PostAsJsonAsync($"api/tmcrequests/{id}/send", dto ?? new SendRequestDto());
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"{(int)response.StatusCode}: {body}");
+        }
         return await response.Content.ReadFromJsonAsync<TmcRequestDto>();
+    }
+
+    public async Task<List<ForwardTargetDto>> GetForwardTargetsAsync(int id)
+    {
+        return await _http.GetFromJsonAsync<List<ForwardTargetDto>>($"api/tmcrequests/{id}/forward-targets")
+               ?? new List<ForwardTargetDto>();
     }
 
     public async Task<List<TmcRequestDto>> GetPendingAsync()

@@ -113,6 +113,45 @@ public class SubmitDecisionDto
     public int? TargetWorkflowStepId { get; set; }
 }
 
+/// <summary>Параметры отправки заявки на согласование. Позволяет инициатору
+/// выбрать стартовый этап/шаг (перепрыгнуть вперёд).</summary>
+public class SendRequestDto
+{
+    /// <summary>Целевой ApprovalStage для старта (стандартный маршрут).
+    /// Null — стандартное поведение (OrderSequence = 1).</summary>
+    public int? TargetStageId { get; set; }
+
+    /// <summary>Целевой WorkflowStep для старта (кастомная цепочка).
+    /// Null — стандартное поведение (первый шаг цепочки по Order).</summary>
+    public int? TargetWorkflowStepId { get; set; }
+}
+
+/// <summary>Возможный целевой этап/шаг для движения заявки ВПЕРЁД
+/// (инициатор выбирает стартовый этап либо согласующий выбирает следующий).</summary>
+public class ForwardTargetDto
+{
+    /// <summary>Id ApprovalStage (стандартный маршрут)</summary>
+    public int? StageId { get; set; }
+
+    /// <summary>Id WorkflowStep (кастомная цепочка)</summary>
+    public int? WorkflowStepId { get; set; }
+
+    /// <summary>Название этапа/шага</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Требуемая должность</summary>
+    public string Position { get; set; } = string.Empty;
+
+    /// <summary>Описание этапа (только для стандартного маршрута)</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Порядковый номер этапа/шага</summary>
+    public int Order { get; set; }
+
+    /// <summary>true — этот этап/шаг является «следующим по умолчанию» для текущего состояния</summary>
+    public bool IsDefault { get; set; }
+}
+
 /// <summary>Возможный целевой этап/шаг для возврата заявки при отклонении</summary>
 public class ReturnTargetDto
 {

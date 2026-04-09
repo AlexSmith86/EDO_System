@@ -177,9 +177,10 @@ public class TmcRequestsController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Отправить заявку на согласование (из Draft или Rework → InApproval)</summary>
+    /// <summary>Отправить заявку на согласование (из Draft или Rework → InApproval).
+    /// Инициатор может указать стартовый этап/шаг через тело запроса (гибкая маршрутизация вперёд).</summary>
     [HttpPost("{id}/send")]
-    public async Task<ActionResult<TmcRequestDto>> Send(int id)
+    public async Task<ActionResult<TmcRequestDto>> Send(int id, [FromBody] SendRequestDto? dto)
     {
         var userId = GetCurrentUserId();
         if (userId is null) return Unauthorized();
@@ -201,34 +202,101 @@ public class TmcRequestsController : ControllerBase
         if (entity.Items.Count == 0)
             return BadRequest(new { message = "Нельзя отправить пустую заявку." });
 
+        string? systemNote = null;
+
         if (entity.WorkflowChainId.HasValue)
         {
-            // Кастомная цепочка — первый шаг
-            var firstStep = await _db.WorkflowSteps
-                .Where(s => s.WorkflowChainId == entity.WorkflowChainId.Value)
-                .OrderBy(s => s.Order)
-                .FirstOrDefaultAsync();
+            // --- Кастомная цепочка ---
+            WorkflowStep? startStep;
 
-            if (firstStep is null)
-                return BadRequest(new { message = "Кастомная цепочка пуста. Обратитесь к администратору." });
+            if (dto?.TargetWorkflowStepId is int targetStepId)
+            {
+                startStep = await _db.WorkflowSteps
+                    .FirstOrDefaultAsync(s => s.Id == targetStepId);
+
+                if (startStep is null)
+                    return BadRequest(new { message = $"Целевой шаг (Id={targetStepId}) не найден." });
+
+                if (startStep.WorkflowChainId != entity.WorkflowChainId.Value)
+                    return BadRequest(new { message = "Целевой шаг принадлежит другой цепочке." });
+
+                // Проверка «пропуска»: если startStep.Order > первого шага — это прыжок вперёд
+                var firstStepOrder = await _db.WorkflowSteps
+                    .Where(s => s.WorkflowChainId == entity.WorkflowChainId.Value)
+                    .MinAsync(s => (int?)s.Order) ?? startStep.Order;
+
+                if (startStep.Order > firstStepOrder)
+                {
+                    systemNote = $"Отправлено с пропуском — старт с шага «{startStep.StepName}» " +
+                                 $"({startStep.TargetPosition}).";
+                }
+            }
+            else
+            {
+                startStep = await _db.WorkflowSteps
+                    .Where(s => s.WorkflowChainId == entity.WorkflowChainId.Value)
+                    .OrderBy(s => s.Order)
+                    .FirstOrDefaultAsync();
+
+                if (startStep is null)
+                    return BadRequest(new { message = "Кастомная цепочка пуста. Обратитесь к администратору." });
+            }
 
             entity.Status = TmcRequestStatus.InApproval;
-            entity.CurrentWorkflowStepId = firstStep.Id;
+            entity.CurrentWorkflowStepId = startStep.Id;
             entity.CurrentStageId = null;
         }
         else
         {
-            // Стандартный маршрут — этап 1 (OrderSequence = 1)
-            var firstApprovalStage = await _db.ApprovalStages
-                .Where(s => s.OrderSequence == 1)
-                .FirstOrDefaultAsync();
+            // --- Стандартный маршрут ---
+            ApprovalStage? startStage;
 
-            if (firstApprovalStage is null)
-                return BadRequest(new { message = "Цепочка согласования не настроена. Обратитесь к администратору." });
+            if (dto?.TargetStageId is int targetStageId)
+            {
+                startStage = await _db.ApprovalStages
+                    .FirstOrDefaultAsync(s => s.Id == targetStageId);
+
+                if (startStage is null)
+                    return BadRequest(new { message = $"Целевой этап (Id={targetStageId}) не найден." });
+
+                if (startStage.OrderSequence <= 0)
+                    return BadRequest(new { message = "Нельзя стартовать с этапа «Инициатор». " +
+                                                        "Выберите этап согласования (OrderSequence > 0)." });
+
+                if (startStage.OrderSequence > 1)
+                {
+                    systemNote = $"Отправлено с пропуском — старт с этапа «{startStage.Name}» " +
+                                 $"({startStage.RequiredPosition}).";
+                }
+            }
+            else
+            {
+                startStage = await _db.ApprovalStages
+                    .Where(s => s.OrderSequence == 1)
+                    .FirstOrDefaultAsync();
+
+                if (startStage is null)
+                    return BadRequest(new { message = "Цепочка согласования не настроена. Обратитесь к администратору." });
+            }
 
             entity.Status = TmcRequestStatus.InApproval;
-            entity.CurrentStageId = firstApprovalStage.Id;
+            entity.CurrentStageId = startStage.Id;
             entity.CurrentWorkflowStepId = null;
+        }
+
+        // Запись в историю факта отправки с учётом возможного пропуска
+        if (!string.IsNullOrEmpty(systemNote))
+        {
+            _db.ActionHistories.Add(new ActionHistory
+            {
+                DocumentId = entity.Id,
+                UserId = userId.Value,
+                StageId = entity.CurrentStageId,
+                WorkflowStepId = entity.CurrentWorkflowStepId,
+                Decision = Decision.Reviewed,
+                Comment = $"[Система] {systemNote}",
+                CreatedAt = DateTime.UtcNow
+            });
         }
 
         await _db.SaveChangesAsync();
@@ -306,6 +374,79 @@ public class TmcRequestsController : ControllerBase
         }
 
         return Ok(result.OrderByDescending(r => r.CreatedAt).ToList());
+    }
+
+    /// <summary>Список этапов/шагов, доступных для движения заявки ВПЕРЁД.
+    /// Для Draft/Rework (без текущего этапа) — все стартовые этапы маршрута.
+    /// Для InApproval — все последующие этапы (Order > current).</summary>
+    [HttpGet("{id}/forward-targets")]
+    public async Task<ActionResult<List<ForwardTargetDto>>> GetForwardTargets(int id)
+    {
+        var entity = await _db.TmcRequests
+            .Include(r => r.CurrentStage)
+            .Include(r => r.CurrentWorkflowStep)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (entity is null)
+            return NotFound(new { message = "Заявка не найдена." });
+
+        var result = new List<ForwardTargetDto>();
+
+        if (entity.WorkflowChainId.HasValue)
+        {
+            // --- Кастомная цепочка ---
+            var stepsQuery = _db.WorkflowSteps
+                .Where(s => s.WorkflowChainId == entity.WorkflowChainId.Value);
+
+            // Если заявка уже на каком-то шаге — показываем только последующие
+            if (entity.CurrentWorkflowStep is not null)
+            {
+                var currentOrder = entity.CurrentWorkflowStep.Order;
+                stepsQuery = stepsQuery.Where(s => s.Order > currentOrder);
+            }
+
+            var steps = await stepsQuery.OrderBy(s => s.Order).ToListAsync();
+
+            for (var i = 0; i < steps.Count; i++)
+            {
+                var s = steps[i];
+                result.Add(new ForwardTargetDto
+                {
+                    WorkflowStepId = s.Id,
+                    Name = s.StepName,
+                    Position = s.TargetPosition,
+                    Description = null,
+                    Order = s.Order,
+                    IsDefault = i == 0
+                });
+            }
+        }
+        else
+        {
+            // --- Стандартный маршрут ---
+            var currentOrder = entity.CurrentStage?.OrderSequence ?? 0;
+
+            var stages = await _db.ApprovalStages
+                .Where(s => s.OrderSequence > currentOrder)
+                .OrderBy(s => s.OrderSequence)
+                .ToListAsync();
+
+            for (var i = 0; i < stages.Count; i++)
+            {
+                var s = stages[i];
+                result.Add(new ForwardTargetDto
+                {
+                    StageId = s.Id,
+                    Name = s.Name,
+                    Position = s.RequiredPosition,
+                    Description = s.Description,
+                    Order = s.OrderSequence,
+                    IsDefault = i == 0
+                });
+            }
+        }
+
+        return Ok(result);
     }
 
     /// <summary>Список этапов/шагов, на которые можно вернуть заявку при отклонении.

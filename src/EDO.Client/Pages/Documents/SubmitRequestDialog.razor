@@ -1,0 +1,171 @@
+@using EDO.Client.Services
+@inject ITmcRequestService RequestService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Выберите этап маршрута, с которого начнётся согласование заявки.
+            По умолчанию выбран первый этап — вы можете пропустить начальные этапы,
+            если это необходимо.
+        </MudText>
+
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-3" />
+        }
+        else if (_targets.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning">
+                Нет доступных этапов для отправки. Проверьте настройку маршрута согласования.
+            </MudAlert>
+        }
+        else
+        {
+            <MudSelect T="ForwardTargetKey"
+                       Value="_selectedKey"
+                       ValueChanged="@OnTargetChanged"
+                       Label="Стартовый этап"
+                       Variant="Variant.Outlined"
+                       Required="true"
+                       RequiredError="Выберите стартовый этап"
+                       AnchorOrigin="Origin.BottomCenter"
+                       Class="mb-3">
+                @foreach (var t in _targets)
+                {
+                    <MudSelectItem T="ForwardTargetKey" Value="@KeyOf(t)">
+                        @BuildLabel(t)
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (_selectedTarget is not null && !string.IsNullOrWhiteSpace(_selectedTarget.Description))
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                    <MudText Typo="Typo.subtitle2" Style="font-weight: 600;" Class="mb-1">
+                        Действия на выбранном этапе:
+                    </MudText>
+                    @foreach (var line in _selectedTarget.Description.Split('\n'))
+                    {
+                        <MudText Typo="Typo.body2">• @line</MudText>
+                    }
+                </MudAlert>
+            }
+
+            @if (IsSkipping())
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true">
+                    Вы пропускаете начальные этапы маршрута. Это действие будет зафиксировано в истории заявки.
+                </MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none;">Отмена</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Success"
+                   OnClick="Submit"
+                   Disabled="@(_processing || _loading || !CanSubmit())"
+                   StartIcon="@Icons.Material.Filled.Send"
+                   Style="text-transform: none;">
+            Отправить на согласование
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public int RequestId { get; set; }
+
+    private List<ForwardTargetDto> _targets = new();
+    private ForwardTargetKey _selectedKey;
+    private ForwardTargetDto? _selectedTarget;
+    private bool _loading = true;
+    private bool _processing;
+
+    public readonly record struct ForwardTargetKey(int? StageId, int? WorkflowStepId);
+
+    private static ForwardTargetKey KeyOf(ForwardTargetDto t) => new(t.StageId, t.WorkflowStepId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _targets = await RequestService.GetForwardTargetsAsync(RequestId);
+
+            // По умолчанию — первый (IsDefault=true), либо первый в списке
+            var defaultItem = _targets.FirstOrDefault(t => t.IsDefault) ?? _targets.FirstOrDefault();
+            if (defaultItem is not null)
+            {
+                _selectedKey = KeyOf(defaultItem);
+                _selectedTarget = defaultItem;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Не удалось загрузить этапы маршрута: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OnTargetChanged(ForwardTargetKey key)
+    {
+        _selectedKey = key;
+        _selectedTarget = _targets.FirstOrDefault(t => KeyOf(t).Equals(key));
+    }
+
+    private bool CanSubmit() =>
+        _targets.Count > 0
+        && _targets.Any(t => KeyOf(t).Equals(_selectedKey));
+
+    /// <summary>Возвращает true, если выбранный этап НЕ является первым в маршруте (т.е. будет пропуск).</summary>
+    private bool IsSkipping()
+    {
+        if (_selectedTarget is null || _targets.Count == 0) return false;
+        var first = _targets[0];
+        return !KeyOf(first).Equals(KeyOf(_selectedTarget));
+    }
+
+    private static string BuildLabel(ForwardTargetDto t) =>
+        $"{t.Order}. {t.Name} ({t.Position})";
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        if (!CanSubmit() || _selectedTarget is null)
+        {
+            Snackbar.Add("Выберите этап для отправки", Severity.Warning);
+            return;
+        }
+
+        _processing = true;
+        try
+        {
+            await RequestService.SendAsync(RequestId, new SendRequestDto
+            {
+                TargetStageId = _selectedTarget.StageId,
+                TargetWorkflowStepId = _selectedTarget.WorkflowStepId
+            });
+
+            var msg = IsSkipping()
+                ? $"Заявка отправлена на этап «{_selectedTarget.Name}» с пропуском начальных этапов"
+                : "Заявка отправлена на согласование";
+            Snackbar.Add(msg, Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+}

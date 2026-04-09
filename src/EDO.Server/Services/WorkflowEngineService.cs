@@ -201,10 +201,45 @@ public class WorkflowEngineService : IWorkflowEngineService
         }
 
         // --- ОДОБРЕНИЕ ---
-        var nextStage = await _db.ApprovalStages
-            .Where(s => s.OrderSequence > currentStage.OrderSequence)
-            .OrderBy(s => s.OrderSequence)
-            .FirstOrDefaultAsync();
+        // Если задан TargetStageId — используем его как «следующий» (с валидацией)
+        ApprovalStage? nextStage;
+        bool skippedStages = false;
+
+        if (request.TargetStageId.HasValue)
+        {
+            nextStage = await _db.ApprovalStages
+                .FirstOrDefaultAsync(s => s.Id == request.TargetStageId.Value);
+
+            if (nextStage is null)
+            {
+                return new WorkflowDecisionResult
+                {
+                    Success = false,
+                    Message = $"Целевой этап (Id={request.TargetStageId}) не найден."
+                };
+            }
+
+            // Целевой этап должен быть ВПЕРЕДИ (OrderSequence строго больше текущего)
+            if (nextStage.OrderSequence <= currentStage.OrderSequence)
+            {
+                return new WorkflowDecisionResult
+                {
+                    Success = false,
+                    Message = "Нельзя перейти на текущий или пройденный этап — " +
+                              "выберите один из последующих этапов."
+                };
+            }
+
+            // Если пропустили этапы — отмечаем
+            skippedStages = nextStage.OrderSequence > currentStage.OrderSequence + 1;
+        }
+        else
+        {
+            nextStage = await _db.ApprovalStages
+                .Where(s => s.OrderSequence > currentStage.OrderSequence)
+                .OrderBy(s => s.OrderSequence)
+                .FirstOrDefaultAsync();
+        }
 
         if (nextStage is null)
         {
@@ -218,13 +253,31 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
+        // Если были пропуски — добавляем системную запись в историю
+        if (skippedStages)
+        {
+            _db.ActionHistories.Add(new ActionHistory
+            {
+                DocumentId = request.DocumentId,
+                UserId = request.UserId,
+                StageId = request.CurrentStageId,
+                Decision = Decision.Reviewed,
+                Comment = $"[Система] Пропуск этапов — переход на «{nextStage.Name}» " +
+                          $"({nextStage.RequiredPosition}).",
+                CreatedAt = DateTime.UtcNow
+            });
+            await _db.SaveChangesAsync();
+        }
+
         return new WorkflowDecisionResult
         {
             Success = true,
             NextStageId = nextStage.Id,
             IsCompleted = false,
             IsRejected = false,
-            Message = $"Заявка передана на этап: {nextStage.Name} ({nextStage.RequiredPosition})."
+            Message = skippedStages
+                ? $"Заявка передана на этап «{nextStage.Name}» ({nextStage.RequiredPosition}) с пропуском промежуточных этапов."
+                : $"Заявка передана на этап: {nextStage.Name} ({nextStage.RequiredPosition})."
         };
     }
 
@@ -362,11 +415,59 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
-        var nextStep = await _db.WorkflowSteps
-            .Where(s => s.WorkflowChainId == request.WorkflowChainId!.Value
-                     && s.Order > currentStep.Order)
-            .OrderBy(s => s.Order)
-            .FirstOrDefaultAsync();
+        // --- ОДОБРЕНИЕ: возможен прыжок вперёд по TargetWorkflowStepId ---
+        WorkflowStep? nextStep;
+        bool skippedSteps = false;
+
+        if (request.TargetWorkflowStepId.HasValue)
+        {
+            nextStep = await _db.WorkflowSteps
+                .FirstOrDefaultAsync(s => s.Id == request.TargetWorkflowStepId.Value);
+
+            if (nextStep is null)
+            {
+                return new WorkflowDecisionResult
+                {
+                    Success = false,
+                    Message = $"Целевой шаг (Id={request.TargetWorkflowStepId}) не найден."
+                };
+            }
+
+            if (nextStep.WorkflowChainId != request.WorkflowChainId!.Value)
+            {
+                return new WorkflowDecisionResult
+                {
+                    Success = false,
+                    Message = "Целевой шаг принадлежит другой цепочке согласования."
+                };
+            }
+
+            if (nextStep.Order <= currentStep.Order)
+            {
+                return new WorkflowDecisionResult
+                {
+                    Success = false,
+                    Message = "Нельзя перейти на текущий или пройденный шаг — " +
+                              "выберите один из последующих шагов."
+                };
+            }
+
+            // Был ли пропуск «соседнего» следующего шага?
+            var immediateNextOrder = await _db.WorkflowSteps
+                .Where(s => s.WorkflowChainId == request.WorkflowChainId.Value
+                         && s.Order > currentStep.Order)
+                .MinAsync(s => (int?)s.Order);
+
+            skippedSteps = immediateNextOrder.HasValue && nextStep.Order > immediateNextOrder.Value;
+        }
+        else
+        {
+            nextStep = await _db.WorkflowSteps
+                .Where(s => s.WorkflowChainId == request.WorkflowChainId!.Value
+                         && s.Order > currentStep.Order)
+                .OrderBy(s => s.Order)
+                .FirstOrDefaultAsync();
+        }
 
         if (nextStep is null)
         {
@@ -380,13 +481,31 @@ public class WorkflowEngineService : IWorkflowEngineService
             };
         }
 
+        if (skippedSteps)
+        {
+            _db.ActionHistories.Add(new ActionHistory
+            {
+                DocumentId = request.DocumentId,
+                UserId = request.UserId,
+                StageId = null,
+                WorkflowStepId = currentStep.Id,
+                Decision = Decision.Reviewed,
+                Comment = $"[Система] Пропуск шагов — переход на «{nextStep.StepName}» " +
+                          $"({nextStep.TargetPosition}).",
+                CreatedAt = DateTime.UtcNow
+            });
+            await _db.SaveChangesAsync();
+        }
+
         return new WorkflowDecisionResult
         {
             Success = true,
             NextWorkflowStepId = nextStep.Id,
             IsCompleted = false,
             IsRejected = false,
-            Message = $"Заявка передана на шаг: {nextStep.StepName} ({nextStep.TargetPosition})."
+            Message = skippedSteps
+                ? $"Заявка передана на шаг «{nextStep.StepName}» ({nextStep.TargetPosition}) с пропуском промежуточных шагов."
+                : $"Заявка передана на шаг: {nextStep.StepName} ({nextStep.TargetPosition})."
         };
     }
 }

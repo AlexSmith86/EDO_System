@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
 
 <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
     <MudText Typo="Typo.h5" Style="font-weight: 700;">Электронный реестр — МТО</MudText>
@@ -182,13 +183,19 @@
 
     private async Task SendRequest(int id)
     {
-        try
+        var parameters = new DialogParameters<SubmitRequestDialog>
         {
-            await RequestService.SendAsync(id);
-            Snackbar.Add("Заявка отправлена на согласование", Severity.Success);
+            { x => x.RequestId, id }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<SubmitRequestDialog>(
+            $"Отправка заявки №{id} на согласование", parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false })
+        {
             await Load();
         }
-        catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
     }
 
     private async Task DeleteRequest(int id)
