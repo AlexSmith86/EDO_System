@@ -9,7 +9,6 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
-@inject LocalStorageService LocalStorage
 
 <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-lg" Style="background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%); border: 1px solid #333;">
     <MudText Typo="Typo.h5" Style="font-weight: 700;">@(_isEdit ? "Редактирование заявки" : "Новая заявка")</MudText>
@@ -187,9 +186,6 @@ else
     private bool _isAdmin;
     private List<string> _projectSuggestions = new();
 
-    private const string ProjectSuggestionsKey = "tmc_request_project_suggestions_v1";
-    private const int MaxProjectSuggestions = 30;
-
     private static readonly string[] _unitOptions = {
         "шт.", "м3", "м2", "м.п.", "т.", "кг.", "уп.", "бал.", "рул.", "компл.", "ч/час.", "маш-см.", "усл. ед."
     };
@@ -204,7 +200,7 @@ else
             _groups = await CategoryService.GetGroupsAsync();
             _users = await UserService.GetAllAsync();
             _chains = await ChainService.GetActiveAsync();
-            await LoadProjectSuggestionsAsync();
+            _projectSuggestions = await RequestService.GetProjectsAsync();
 
             if (Id.HasValue)
             {
@@ -344,8 +340,6 @@ else
                 Snackbar.Add("Заявка создана", Severity.Success);
             }
 
-            await SaveProjectSuggestionAsync(_projectName);
-
             Navigation.NavigateTo("/documents/tmcrequests");
         }
         catch (Exception ex) { Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error); }
@@ -392,41 +386,6 @@ else
             ? _unitOptions.AsEnumerable()
             : _unitOptions.Where(u => u.Contains(value, StringComparison.OrdinalIgnoreCase));
         return Task.FromResult(result);
-    }
-
-    private async Task LoadProjectSuggestionsAsync()
-    {
-        try
-        {
-            var raw = await LocalStorage.GetItemAsync(ProjectSuggestionsKey);
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                _projectSuggestions = new();
-                return;
-            }
-
-            _projectSuggestions = System.Text.Json.JsonSerializer.Deserialize<List<string>>(raw) ?? new();
-        }
-        catch
-        {
-            _projectSuggestions = new();
-        }
-    }
-
-    private async Task SaveProjectSuggestionAsync(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return;
-
-        var normalized = value.Trim();
-        _projectSuggestions.RemoveAll(p => string.Equals(p, normalized, StringComparison.OrdinalIgnoreCase));
-        _projectSuggestions.Insert(0, normalized);
-
-        if (_projectSuggestions.Count > MaxProjectSuggestions)
-            _projectSuggestions = _projectSuggestions.Take(MaxProjectSuggestions).ToList();
-
-        var serialized = System.Text.Json.JsonSerializer.Serialize(_projectSuggestions);
-        await LocalStorage.SetItemAsync(ProjectSuggestionsKey, serialized);
     }
 
     private class RequestItemRow

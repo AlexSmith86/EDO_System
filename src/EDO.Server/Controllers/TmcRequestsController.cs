@@ -44,6 +44,18 @@ public class TmcRequestsController : ControllerBase
         return Ok(entities.Select(r => MapToDto(r)).ToList());
     }
 
+    [HttpGet("projects")]
+    public async Task<ActionResult<List<string>>> GetProjects()
+    {
+        var projects = await _db.TmcRequests
+            .Where(r => !string.IsNullOrEmpty(r.ProjectName))
+            .Select(r => r.ProjectName!)
+            .Distinct()
+            .OrderBy(p => p)
+            .ToListAsync();
+        return Ok(projects);
+    }
+
     [HttpGet("my")]
     public async Task<ActionResult<List<TmcRequestDto>>> GetMy()
     {

@@ -140,6 +140,7 @@ public interface ITmcRequestService
     Task<TmcRequestDto?> SubmitDecisionAsync(int id, SubmitDecisionDto dto);
     Task<List<ReturnTargetDto>> GetReturnTargetsAsync(int id);
     Task DeleteAsync(int id);
+    Task<List<string>> GetProjectsAsync();
 }
 
 public class TmcRequestService : ITmcRequestService
@@ -224,5 +225,10 @@ public class TmcRequestService : ITmcRequestService
     {
         var response = await _http.DeleteAsync($"api/tmcrequests/{id}");
         response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<string>> GetProjectsAsync()
+    {
+        return await _http.GetFromJsonAsync<List<string>>("api/tmcrequests/projects") ?? new();
     }
 }
