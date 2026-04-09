@@ -42,8 +42,9 @@
 </MudGrid>
 
 <MudTable Items="@FilteredItems" Hover="true" Striped="false" Loading="@_loading" Elevation="2"
-          Dense="true" Breakpoint="Breakpoint.Sm">
+          Dense="true" Breakpoint="Breakpoint.Sm" T="TmcRequestDto">
     <HeaderContent>
+        <MudTh Style="width: 40px;"></MudTh>
         <MudTh>Дата</MudTh>
         <MudTh>Проект</MudTh>
         <MudTh>Инициатор</MudTh>
@@ -55,6 +56,11 @@
         <MudTh>Действия</MudTh>
     </HeaderContent>
     <RowTemplate>
+        <MudTd>
+            <MudIconButton Size="Size.Small"
+                           Icon="@(IsExpanded(context.Id) ? Icons.Material.Filled.KeyboardArrowUp : Icons.Material.Filled.KeyboardArrowDown)"
+                           OnClick="@(() => ToggleExpanded(context.Id))" />
+        </MudTd>
         <MudTd DataLabel="Дата">@context.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudTd>
         <MudTd DataLabel="Проект">@(context.ProjectName ?? "—")</MudTd>
         <MudTd DataLabel="Инициатор">@(context.InitiatorName ?? "Неизвестный")</MudTd>
@@ -131,6 +137,56 @@
             }
         </MudTd>
     </RowTemplate>
+    <ChildRowContent>
+        @if (IsExpanded(context.Id))
+        {
+            <MudTr>
+                <td colspan="10" style="background-color: #1a1a2a; padding: 16px 24px;">
+                    <MudText Typo="Typo.subtitle2" Style="font-weight: 600;" Class="mb-2">
+                        История согласования заявки №@context.Id
+                    </MudText>
+
+                    @if (context.ApprovalHistory.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            История действий по этой заявке пока отсутствует.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudTimeline TimelinePosition="TimelinePosition.Start" TimelineAlign="TimelineAlign.Start">
+                            @foreach (var h in context.ApprovalHistory)
+                            {
+                                <MudTimelineItem Color="@GetDecisionColor(h.Decision)" Size="Size.Small" Elevation="0">
+                                    <ItemContent>
+                                        <MudPaper Elevation="0" Outlined="true" Class="pa-3">
+                                            <div class="d-flex align-center gap-2 mb-1">
+                                                <MudChip T="string" Size="Size.Small" Color="@GetDecisionColor(h.Decision)">
+                                                    @h.DecisionDisplay
+                                                </MudChip>
+                                                <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                                                    @h.StageName
+                                                </MudText>
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                    @h.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                                </MudText>
+                                            </div>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                @(string.IsNullOrWhiteSpace(h.UserPosition) ? h.StagePosition : h.UserPosition), @h.UserName
+                                            </MudText>
+                                            <MudText Typo="Typo.body2" Class="mt-1">
+                                                @(string.IsNullOrWhiteSpace(h.Comment) ? "Без комментария" : h.Comment)
+                                            </MudText>
+                                        </MudPaper>
+                                    </ItemContent>
+                                </MudTimelineItem>
+                            }
+                        </MudTimeline>
+                    }
+                </td>
+            </MudTr>
+        }
+    </ChildRowContent>
     <NoRecordsContent>
         <MudText>Заявок пока нет</MudText>
     </NoRecordsContent>
@@ -146,6 +202,23 @@
     private string? _statusFilter;
     private bool _isAdmin;
     private int _currentUserId;
+    private readonly HashSet<int> _expanded = new();
+
+    private bool IsExpanded(int id) => _expanded.Contains(id);
+
+    private void ToggleExpanded(int id)
+    {
+        if (!_expanded.Add(id))
+            _expanded.Remove(id);
+    }
+
+    private static Color GetDecisionColor(string decision) => decision switch
+    {
+        "Approved" => Color.Success,
+        "Rejected" => Color.Error,
+        "Reviewed" => Color.Info,
+        _ => Color.Default
+    };
 
     private IEnumerable<TmcRequestDto> FilteredItems
     {

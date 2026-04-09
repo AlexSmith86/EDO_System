@@ -68,7 +68,11 @@ public class TmcRequestsController : ControllerBase
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync();
 
-        return Ok(entities.Select(r => MapToDto(r)).ToList());
+        var histories = await LoadApprovalHistoriesForRequests(entities.Select(e => e.Id).ToList());
+        return Ok(entities
+            .Select(r => MapToDto(r, _totalStages,
+                histories.TryGetValue(r.Id, out var h) ? h : new List<ApprovalHistoryDto>()))
+            .ToList());
     }
 
     [HttpGet("{id}")]
@@ -383,6 +387,13 @@ public class TmcRequestsController : ControllerBase
 
             if (canAct)
                 result.Add(MapToDto(r));
+        }
+
+        var histories = await LoadApprovalHistoriesForRequests(result.Select(r => r.Id).ToList());
+        foreach (var dto in result)
+        {
+            if (histories.TryGetValue(dto.Id, out var h))
+                dto.ApprovalHistory = h;
         }
 
         return Ok(result.OrderByDescending(r => r.CreatedAt).ToList());
@@ -701,10 +712,51 @@ public class TmcRequestsController : ControllerBase
                 Decision = h.Decision.ToString(),
                 DecisionDisplay = DecisionToRussian(h.Decision),
                 UserName = $"{h.User.LastName} {h.User.FirstName}",
+                UserPosition = h.User.Position,
                 Comment = h.Comment,
                 CreatedAt = h.CreatedAt
             })
             .ToListAsync();
+    }
+
+    /// <summary>Батч-загрузка истории сразу для нескольких заявок (избегаем N+1).</summary>
+    private async Task<Dictionary<int, List<ApprovalHistoryDto>>> LoadApprovalHistoriesForRequests(
+        List<int> requestIds)
+    {
+        if (requestIds.Count == 0)
+            return new Dictionary<int, List<ApprovalHistoryDto>>();
+
+        var rows = await _db.ActionHistories
+            .Where(h => requestIds.Contains(h.DocumentId))
+            .Include(h => h.User)
+            .Include(h => h.Stage)
+            .Include(h => h.WorkflowStep)
+            .OrderByDescending(h => h.CreatedAt)
+            .Select(h => new
+            {
+                h.DocumentId,
+                Dto = new ApprovalHistoryDto
+                {
+                    Id = h.Id,
+                    StageName = h.Stage != null ? h.Stage.Name
+                              : h.WorkflowStep != null ? h.WorkflowStep.StepName
+                              : "—",
+                    StagePosition = h.Stage != null ? h.Stage.RequiredPosition
+                                  : h.WorkflowStep != null ? h.WorkflowStep.TargetPosition
+                                  : "—",
+                    Decision = h.Decision.ToString(),
+                    DecisionDisplay = DecisionToRussian(h.Decision),
+                    UserName = $"{h.User.LastName} {h.User.FirstName}",
+                    UserPosition = h.User.Position,
+                    Comment = h.Comment,
+                    CreatedAt = h.CreatedAt
+                }
+            })
+            .ToListAsync();
+
+        return rows
+            .GroupBy(x => x.DocumentId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Dto).ToList());
     }
 
     private TmcRequestDto MapToDto(TmcRequest r) => MapToDto(r, _totalStages);

@@ -31,6 +31,8 @@ public class ApprovalHistoryDto
     public string Decision { get; set; } = string.Empty;
     public string DecisionDisplay { get; set; } = string.Empty;
     public string UserName { get; set; } = string.Empty;
+    /// <summary>Должность пользователя, совершившего действие.</summary>
+    public string? UserPosition { get; set; }
     public string? Comment { get; set; }
     public DateTime CreatedAt { get; set; }
 }
