@@ -33,14 +33,27 @@
         }
         else
         {
-            <MudTimeline TimelinePosition="TimelinePosition.Start">
-                @foreach (var stage in _stages)
+            var orderedStages = _stages.OrderBy(s => s.OrderSequence).ToList();
+
+            <div class="chain-flow standard-flow">
+                <div class="flow-marker flow-start">
+                    <div class="flow-dot start-dot">
+                        <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small" />
+                    </div>
+                    <div class="flow-content">
+                        <MudText Typo="Typo.body1" Style="font-weight: 700;">СТАРТ</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Создание заявки</MudText>
+                    </div>
+                </div>
+
+                @for (var i = 0; i < orderedStages.Count; i++)
                 {
-                    <MudTimelineItem Color="Color.Warning" Variant="Variant.Filled" Size="Size.Medium">
-                        <ItemDot>
-                            <MudText Typo="Typo.body2" Style="font-weight: 700;">@stage.OrderSequence</MudText>
-                        </ItemDot>
-                        <ItemContent>
+                    var stage = orderedStages[i];
+                    var nodeClass = $"flow-step {(i == 0 ? "no-top-line" : "")} {(i == orderedStages.Count - 1 ? "no-bottom-line" : "")}";
+
+                    <div class="@nodeClass">
+                        <div class="flow-dot standard-dot">@stage.OrderSequence</div>
+                        <div class="flow-content w-100">
                             <MudCard Elevation="2" Class="pa-3">
                                 <div class="d-flex justify-space-between align-center">
                                     <div>
@@ -56,10 +69,20 @@
                                                    OnClick="@(() => OpenEditStageDialog(stage))" />
                                 </div>
                             </MudCard>
-                        </ItemContent>
-                    </MudTimelineItem>
+                        </div>
+                    </div>
                 }
-            </MudTimeline>
+
+                <div class="flow-marker flow-finish">
+                    <div class="flow-dot finish-dot">
+                        <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                    </div>
+                    <div class="flow-content">
+                        <MudText Typo="Typo.body1" Style="font-weight: 700;">ФИНИШ</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Документ утвержден</MudText>
+                    </div>
+                </div>
+            </div>
         }
     </MudTabPanel>
 
@@ -108,28 +131,160 @@
                     }
                     else
                     {
-                        <MudTimeline TimelinePosition="TimelinePosition.Start">
-                            @foreach (var step in (chain.Steps ?? []).OrderBy(s => s.Order))
+                        var orderedSteps = (chain.Steps ?? []).OrderBy(s => s.Order).ToList();
+
+                        <div class="chain-flow">
+                            <div class="flow-marker flow-start">
+                                <div class="flow-dot start-dot">
+                                    <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small" />
+                                </div>
+                                <div class="flow-content">
+                                    <MudText Typo="Typo.body1" Style="font-weight: 700;">СТАРТ</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Создание заявки</MudText>
+                                </div>
+                            </div>
+
+                            @for (var i = 0; i < orderedSteps.Count; i++)
                             {
-                                <MudTimelineItem Color="Color.Info" Variant="Variant.Filled" Size="Size.Small">
-                                    <ItemDot>
-                                        <MudText Typo="Typo.caption" Style="font-weight: 700;">@step.Order</MudText>
-                                    </ItemDot>
-                                    <ItemContent>
+                                var step = orderedSteps[i];
+                                var nodeClass = $"flow-step {(i == 0 ? "no-top-line" : "")} {(i == orderedSteps.Count - 1 ? "no-bottom-line" : "")}";
+
+                                <div class="@nodeClass">
+                                    <div class="flow-dot step-dot">@step.Order</div>
+                                    <div class="flow-content">
                                         <MudText Typo="Typo.body1" Style="font-weight: 600;">@step.StepName</MudText>
                                         <MudText Typo="Typo.body2" Color="Color.Secondary">
                                             Должность: @step.TargetPosition
                                         </MudText>
-                                    </ItemContent>
-                                </MudTimelineItem>
+                                    </div>
+                                </div>
                             }
-                        </MudTimeline>
+
+                            <div class="flow-marker flow-finish">
+                                <div class="flow-dot finish-dot">
+                                    <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" />
+                                </div>
+                                <div class="flow-content">
+                                    <MudText Typo="Typo.body1" Style="font-weight: 700;">ФИНИШ</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">Документ утвержден</MudText>
+                                </div>
+                            </div>
+                        </div>
                     }
                 </MudCard>
             }
         }
     </MudTabPanel>
 </MudTabs>
+
+<style>
+    .chain-flow {
+        --flow-line-color: rgba(85, 139, 255, 0.45);
+        --flow-step-dot: #42a5f5;
+        --flow-start-dot: #ffb300;
+        --flow-finish-dot: #2e7d32;
+        --flow-dot-size: 32px;
+        position: relative;
+        padding-left: 2px;
+    }
+
+    .flow-marker,
+    .flow-step {
+        position: relative;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        min-height: 56px;
+    }
+
+    .flow-step::before,
+    .flow-step::after {
+        content: "";
+        position: absolute;
+        left: calc(var(--flow-dot-size) / 2 - 1px);
+        width: 2px;
+        background: var(--flow-line-color);
+    }
+
+    .flow-step::before {
+        top: -12px;
+        bottom: 50%;
+    }
+
+    .flow-step::after {
+        top: 50%;
+        bottom: -12px;
+    }
+
+    .flow-step.no-top-line::before {
+        display: none;
+    }
+
+    .flow-step.no-bottom-line::after {
+        display: none;
+    }
+
+    .flow-dot {
+        width: var(--flow-dot-size);
+        height: var(--flow-dot-size);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: #fff;
+        z-index: 1;
+        flex: 0 0 var(--flow-dot-size);
+    }
+
+    .step-dot {
+        background: var(--flow-step-dot);
+    }
+
+    .standard-dot {
+        background: #ffb300;
+    }
+
+    .start-dot {
+        background: var(--flow-start-dot);
+    }
+
+    .finish-dot {
+        background: var(--flow-finish-dot);
+    }
+
+    .flow-content {
+        padding: 6px 0;
+    }
+
+    .flow-start {
+        margin-bottom: 6px;
+    }
+
+    .flow-start::after {
+        content: "";
+        position: absolute;
+        left: calc(var(--flow-dot-size) / 2 - 1px);
+        top: calc(var(--flow-dot-size) + 2px);
+        height: 16px;
+        width: 2px;
+        background: var(--flow-line-color);
+    }
+
+    .flow-finish {
+        margin-top: 6px;
+    }
+
+    .flow-finish::before {
+        content: "";
+        position: absolute;
+        left: calc(var(--flow-dot-size) / 2 - 1px);
+        top: -16px;
+        height: 16px;
+        width: 2px;
+        background: var(--flow-line-color);
+    }
+</style>
 
 @code {
     private List<ApprovalStageDto> _stages = new();
