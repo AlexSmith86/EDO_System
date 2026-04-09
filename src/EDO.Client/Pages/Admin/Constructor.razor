@@ -179,7 +179,9 @@
             {
                 await StageService.CreateAsync(new CreateApprovalStageDto
                 {
-                    Name = model.Name, RoleId = model.RoleId, OrderSequence = model.OrderSequence
+                    Name = model.Name, RoleId = model.RoleId,
+                    RequiredPosition = model.RequiredPosition,
+                    OrderSequence = model.OrderSequence
                 });
                 Snackbar.Add("Этап создан", Severity.Success);
                 await LoadStages();
@@ -192,7 +194,9 @@
     {
         var model = new StageDialog.StageDialogModel
         {
-            Name = stage.Name, RoleId = stage.RoleId, OrderSequence = stage.OrderSequence
+            Name = stage.Name, RoleId = stage.RoleId,
+            RequiredPosition = stage.RequiredPosition,
+            OrderSequence = stage.OrderSequence
         };
         var parameters = new DialogParameters<StageDialog>
         {
@@ -209,7 +213,9 @@
             {
                 await StageService.UpdateAsync(stage.Id, new UpdateApprovalStageDto
                 {
-                    Name = edited.Name, RoleId = edited.RoleId, OrderSequence = edited.OrderSequence
+                    Name = edited.Name, RoleId = edited.RoleId,
+                    RequiredPosition = edited.RequiredPosition,
+                    OrderSequence = edited.OrderSequence
                 });
                 Snackbar.Add("Этап обновлён", Severity.Success);
                 await LoadStages();

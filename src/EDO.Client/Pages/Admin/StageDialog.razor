@@ -1,5 +1,6 @@
 @using EDO.Client.Services
 @inject IRoleService RoleService
+@inject IWorkflowChainService ChainService
 
 <MudDialog>
     <TitleContent>
@@ -15,6 +16,10 @@
                 <MudSelectItem T="int?" Value="@role.Id">@role.Name</MudSelectItem>
             }
         </MudSelect>
+        <MudAutocomplete T="string" @bind-Value="Model.RequiredPosition"
+                         Label="Должность (кто согласует)" Variant="Variant.Outlined"
+                         SearchFunc="@SearchPositions" CoerceValue="true" Clearable="true"
+                         Class="mb-3" />
         <MudNumericField @bind-Value="Model.OrderSequence" Label="Порядковый номер" Variant="Variant.Outlined"
                          Min="1" Required="true" Class="mb-3" />
     </DialogContent>
@@ -35,10 +40,20 @@
     [Parameter] public bool IsEdit { get; set; }
 
     private List<RoleDto> _roles = new();
+    private List<string> _positions = new();
 
     protected override async Task OnInitializedAsync()
     {
         _roles = await RoleService.GetAllAsync();
+        _positions = await ChainService.GetPositionsAsync();
+    }
+
+    private Task<IEnumerable<string>> SearchPositions(string value, CancellationToken token)
+    {
+        var result = string.IsNullOrEmpty(value)
+            ? _positions.AsEnumerable()
+            : _positions.Where(p => p.Contains(value, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(result);
     }
 
     private void Cancel() => MudDialog.Cancel();
@@ -48,6 +63,7 @@
     {
         public string Name { get; set; } = string.Empty;
         public int? RoleId { get; set; }
+        public string? RequiredPosition { get; set; }
         public int OrderSequence { get; set; } = 1;
     }
 }
