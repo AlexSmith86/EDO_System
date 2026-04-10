@@ -2,10 +2,29 @@ using System.Text;
 using EDO.Server.Data;
 using EDO.Server.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// === Лимиты загрузки файлов — 50 МБ ===
+// Должно совпадать с LocalFileStorageService.MaxFileSizeBytes.
+// Kestrel по умолчанию режет тело запроса на ~30 МБ; для приёма вложений
+// поднимаем до 50 МБ и синхронизируем FormOptions, чтобы multipart
+// тоже не упирался в дефолтный лимит.
+const long MaxUploadBytes = 50L * 1024 * 1024;
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = MaxUploadBytes;
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = MaxUploadBytes;
+    options.ValueLengthLimit = int.MaxValue;
+});
 
 builder.Services.AddControllers();
 
@@ -47,6 +66,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<IWorkflowEngineService, WorkflowEngineService>();
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddSingleton<TelegramBotService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TelegramBotService>());
 
@@ -57,6 +77,14 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Гарантируем, что папка wwwroot/uploads/attachments существует до старта:
+// app.UseStaticFiles() требует наличия wwwroot, иначе вложения не будут
+// отдаваться по /uploads/attachments/*.
+var webRootPath = string.IsNullOrWhiteSpace(app.Environment.WebRootPath)
+    ? Path.Combine(app.Environment.ContentRootPath, "wwwroot")
+    : app.Environment.WebRootPath;
+Directory.CreateDirectory(Path.Combine(webRootPath, "uploads", "attachments"));
 
 using (var scope = app.Services.CreateScope())
 {

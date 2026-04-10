@@ -1,4 +1,5 @@
 @using EDO.Client.Services
+@inject ITmcRequestService RequestService
 
 <MudDialog>
     <DialogContent>
@@ -93,6 +94,19 @@
                                 @if (!string.IsNullOrWhiteSpace(h.Comment))
                                 {
                                     <MudText Typo="Typo.body2" Class="mt-1">@h.Comment</MudText>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(h.AttachedFileUrl))
+                                {
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Color="Color.Primary"
+                                             Variant="Variant.Filled"
+                                             Icon="@Icons.Material.Filled.AttachFile"
+                                             Href="@RequestService.BuildAttachmentAbsoluteUrl(h.AttachedFileUrl!)"
+                                             Target="_blank"
+                                             Class="mt-2">
+                                        @(string.IsNullOrWhiteSpace(h.AttachedFileName) ? "Файл" : h.AttachedFileName)
+                                    </MudChip>
                                 }
                             </MudPaper>
                         </ItemContent>

@@ -175,6 +175,8 @@ public class WorkflowEngineService : IWorkflowEngineService
             StageId = request.CurrentStageId,
             Decision = request.Decision,
             Comment = historyComment,
+            AttachedFileName = request.AttachedFileName,
+            AttachedFileUrl = request.AttachedFileUrl,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -395,6 +397,8 @@ public class WorkflowEngineService : IWorkflowEngineService
             WorkflowStepId = currentStep.Id,
             Decision = request.Decision,
             Comment = historyComment,
+            AttachedFileName = request.AttachedFileName,
+            AttachedFileUrl = request.AttachedFileUrl,
             CreatedAt = DateTime.UtcNow
         };
 

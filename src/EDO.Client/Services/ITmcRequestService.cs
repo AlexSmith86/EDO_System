@@ -1,3 +1,5 @@
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
 namespace EDO.Client.Services;
@@ -42,6 +44,21 @@ public class ApprovalHistoryDto
     public string? UserPosition { get; set; }
     public string? Comment { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>Оригинальное имя прикреплённого к решению файла (для отображения).</summary>
+    public string? AttachedFileName { get; set; }
+
+    /// <summary>Относительный URL вложения — «/uploads/attachments/{guid}.ext».
+    /// Клиент открывает его по базовому адресу HttpClient.</summary>
+    public string? AttachedFileUrl { get; set; }
+}
+
+/// <summary>Ответ эндпоинта загрузки вложения.</summary>
+public class UploadedAttachmentDto
+{
+    public string FileName { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public long Size { get; set; }
 }
 
 public class TmcRequestItemDto
@@ -102,6 +119,13 @@ public class SubmitDecisionDto
     /// <summary>Для отклонения кастомной цепочки — Id целевого WorkflowStep.
     /// Null = возврат к инициатору.</summary>
     public int? TargetWorkflowStepId { get; set; }
+
+    /// <summary>Оригинальное имя прикреплённого файла (опционально).
+    /// Предполагается, что файл уже загружен через UploadAttachmentAsync.</summary>
+    public string? AttachedFileName { get; set; }
+
+    /// <summary>Относительный URL прикреплённого файла, возвращённый сервером при загрузке.</summary>
+    public string? AttachedFileUrl { get; set; }
 }
 
 public class ReturnTargetDto
@@ -151,6 +175,14 @@ public interface ITmcRequestService
     Task<TmcRequestDto?> AssignResponsibleAsync(int id, AssignResponsibleDto dto);
     Task DeleteAsync(int id);
     Task<List<string>> GetProjectsAsync();
+
+    /// <summary>Загрузить файл-вложение для заявки (multipart).
+    /// Возвращает метаданные, которые затем кладутся в SubmitDecisionDto.</summary>
+    Task<UploadedAttachmentDto?> UploadAttachmentAsync(int requestId, Stream content, string fileName, string contentType);
+
+    /// <summary>Построить абсолютный URL файла по относительному пути
+    /// («/uploads/attachments/xxx.pdf»), учитывая BaseAddress HttpClient'а.</summary>
+    string BuildAttachmentAbsoluteUrl(string relativeUrl);
 }
 
 public class TmcRequestService : ITmcRequestService
@@ -251,5 +283,59 @@ public class TmcRequestService : ITmcRequestService
     public async Task<List<string>> GetProjectsAsync()
     {
         return await _http.GetFromJsonAsync<List<string>>("api/tmcrequests/projects") ?? new();
+    }
+
+    public async Task<UploadedAttachmentDto?> UploadAttachmentAsync(
+        int requestId, Stream content, string fileName, string contentType)
+    {
+        // Лимит 50 МБ (должен совпадать с Kestrel/LocalFileStorageService на сервере).
+        const long maxBytes = 50L * 1024 * 1024;
+
+        using var form = new MultipartFormDataContent();
+        var streamContent = new StreamContent(content, bufferSize: 81920);
+        streamContent.Headers.ContentType = string.IsNullOrWhiteSpace(contentType)
+            ? new MediaTypeHeaderValue("application/octet-stream")
+            : new MediaTypeHeaderValue(contentType);
+        form.Add(streamContent, "file", fileName);
+
+        // Для Blazor WASM важно явно отключить буферизацию ответа, чтобы
+        // большие запросы уезжали потоком, а не копились целиком в памяти.
+        var request = new HttpRequestMessage(HttpMethod.Post, $"api/tmcrequests/{requestId}/attachment")
+        {
+            Content = form
+        };
+
+        var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            if (response.StatusCode == System.Net.HttpStatusCode.RequestEntityTooLarge
+                || (!string.IsNullOrEmpty(body) && body.Contains("слишком большой", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new HttpRequestException(
+                    $"Файл превышает лимит {maxBytes / (1024 * 1024)} МБ.");
+            }
+            throw new HttpRequestException($"{(int)response.StatusCode}: {body}");
+        }
+
+        return await response.Content.ReadFromJsonAsync<UploadedAttachmentDto>();
+    }
+
+    public string BuildAttachmentAbsoluteUrl(string relativeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(relativeUrl))
+            return string.Empty;
+
+        // Если уже абсолютный URL — отдаём как есть.
+        if (Uri.TryCreate(relativeUrl, UriKind.Absolute, out _))
+            return relativeUrl;
+
+        var baseAddress = _http.BaseAddress;
+        if (baseAddress is null)
+            return relativeUrl;
+
+        // Uri корректно склеивает host + «/uploads/...» вне зависимости от того,
+        // есть ли в BaseAddress финальный слэш.
+        return new Uri(baseAddress, relativeUrl).ToString();
     }
 }

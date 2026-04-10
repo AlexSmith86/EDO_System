@@ -53,6 +53,26 @@ public class ApprovalHistoryDto
     public string? UserPosition { get; set; }
     public string? Comment { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>Оригинальное имя прикреплённого файла (для отображения).</summary>
+    public string? AttachedFileName { get; set; }
+
+    /// <summary>Относительный URL файла для скачивания
+    /// (например, «/uploads/attachments/{guid}.pdf»).</summary>
+    public string? AttachedFileUrl { get; set; }
+}
+
+/// <summary>Ответ эндпоинта загрузки вложения.</summary>
+public class UploadedAttachmentDto
+{
+    /// <summary>Оригинальное имя загруженного файла (для отображения).</summary>
+    public string FileName { get; set; } = string.Empty;
+
+    /// <summary>Относительный URL, по которому файл потом скачивается.</summary>
+    public string Url { get; set; } = string.Empty;
+
+    /// <summary>Размер в байтах.</summary>
+    public long Size { get; set; }
 }
 
 public class TmcRequestItemDto
@@ -131,6 +151,15 @@ public class SubmitDecisionDto
     /// <summary>Целевой WorkflowStep для возврата при отклонении (кастомная цепочка).
     /// Если null — возврат к инициатору (CurrentWorkflowStepId = null, статус Rework).</summary>
     public int? TargetWorkflowStepId { get; set; }
+
+    /// <summary>Оригинальное имя прикреплённого файла (опционально). Файл к этому моменту
+    /// уже должен быть загружен через POST /api/tmcrequests/{id}/attachment — здесь
+    /// передаётся только его имя для отображения в таймлайне истории.</summary>
+    public string? AttachedFileName { get; set; }
+
+    /// <summary>Относительный URL прикреплённого файла, возвращённый эндпоинтом загрузки
+    /// (/uploads/attachments/{guid}.ext).</summary>
+    public string? AttachedFileUrl { get; set; }
 }
 
 /// <summary>Параметры отправки заявки на согласование. Позволяет инициатору

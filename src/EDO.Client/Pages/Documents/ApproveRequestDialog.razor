@@ -1,4 +1,5 @@
 @using EDO.Client.Services
+@using Microsoft.AspNetCore.Components.Forms
 @inject ITmcRequestService RequestService
 @inject ISnackbar Snackbar
 
@@ -65,6 +66,44 @@
                       Variant="Variant.Outlined"
                       Lines="3"
                       Class="mt-2" />
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1" Style="font-weight: 600;">
+            Прикрепить файл (необязательно)
+        </MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+            Любой тип, до 50 МБ. Файл попадёт в историю заявки и будет доступен для скачивания.
+        </MudText>
+
+        <MudFileUpload T="IBrowserFile"
+                       FilesChanged="OnFileSelected"
+                       MaximumFileCount="1"
+                       Accept="*/*">
+            <CustomContent Context="fileUpload">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.AttachFile"
+                           OnClick="@(async () => await fileUpload.OpenFilePickerAsync())"
+                           Style="text-transform: none;">
+                    @(_selectedFile is null ? "Выбрать файл" : "Заменить файл")
+                </MudButton>
+            </CustomContent>
+        </MudFileUpload>
+
+        @if (_selectedFile is not null)
+        {
+            <MudChip T="string"
+                     Size="Size.Small"
+                     Color="Color.Primary"
+                     Icon="@Icons.Material.Filled.Description"
+                     OnClose="ClearFile"
+                     Class="mt-2">
+                @_selectedFile.Name (@FormatSize(_selectedFile.Size))
+            </MudChip>
+            @if (!string.IsNullOrEmpty(_fileError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_fileError</MudAlert>
+            }
+        }
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" Style="text-transform: none;">Отмена</MudButton>
@@ -84,12 +123,17 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public TmcRequestDto Request { get; set; } = null!;
 
+    private const long MaxFileSizeBytes = 50L * 1024 * 1024;
+
     private List<ForwardTargetDto> _targets = new();
     private ForwardTargetKey _selectedKey;
     private ForwardTargetDto? _selectedTarget;
     private string? _comment;
     private bool _loading = true;
     private bool _processing;
+
+    private IBrowserFile? _selectedFile;
+    private string? _fileError;
 
     public readonly record struct ForwardTargetKey(int? StageId, int? WorkflowStepId);
 
@@ -138,18 +182,81 @@
 
     private void Cancel() => MudDialog.Cancel();
 
+    private void OnFileSelected(IBrowserFile? file)
+    {
+        _fileError = null;
+        if (file is null)
+        {
+            _selectedFile = null;
+            return;
+        }
+
+        if (file.Size > MaxFileSizeBytes)
+        {
+            _fileError = $"Файл слишком большой: {file.Size / (1024 * 1024)} МБ. Максимум — 50 МБ.";
+            _selectedFile = null;
+            return;
+        }
+
+        _selectedFile = file;
+    }
+
+    private void ClearFile(MudBlazor.MudChip<string> _)
+    {
+        _selectedFile = null;
+        _fileError = null;
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1024 * 1024
+            ? $"{bytes / 1024.0 / 1024.0:0.#} МБ"
+            : $"{Math.Max(1, bytes / 1024)} КБ";
+
     private async Task Submit()
     {
+        if (_selectedFile is not null && !string.IsNullOrEmpty(_fileError))
+        {
+            Snackbar.Add(_fileError, Severity.Error);
+            return;
+        }
+
         _processing = true;
         try
         {
-            // Если список пуст (финальный этап) — передаём решение без target (завершение)
+            // Шаг 1: если пользователь приложил файл — сначала заливаем его,
+            // получаем URL, и уже его кладём в SubmitDecisionDto. Это позволяет
+            // оставить /decision чисто JSON-овым и не биться с multipart в WASM.
+            string? attachedName = null;
+            string? attachedUrl = null;
+
+            if (_selectedFile is not null)
+            {
+                // 50 МБ максимум — OpenReadStream требует явного лимита,
+                // иначе бросит исключение для файлов > 500 КБ (дефолт SignalR).
+                await using var stream = _selectedFile.OpenReadStream(MaxFileSizeBytes);
+                var uploaded = await RequestService.UploadAttachmentAsync(
+                    Request.Id,
+                    stream,
+                    _selectedFile.Name,
+                    _selectedFile.ContentType);
+
+                if (uploaded is null)
+                    throw new InvalidOperationException("Сервер не вернул метаданные файла.");
+
+                attachedName = uploaded.FileName;
+                attachedUrl = uploaded.Url;
+            }
+
+            // Шаг 2: отправляем решение с ссылкой на уже загруженный файл.
+            // Если список пуст (финальный этап) — передаём решение без target (завершение).
             var dto = new SubmitDecisionDto
             {
                 Decision = "Approved",
                 Comment = _comment,
                 TargetStageId = _selectedTarget?.StageId,
-                TargetWorkflowStepId = _selectedTarget?.WorkflowStepId
+                TargetWorkflowStepId = _selectedTarget?.WorkflowStepId,
+                AttachedFileName = attachedName,
+                AttachedFileUrl = attachedUrl
             };
 
             await RequestService.SubmitDecisionAsync(Request.Id, dto);

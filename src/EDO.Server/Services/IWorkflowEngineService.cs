@@ -23,6 +23,14 @@ public class WorkflowDecisionRequest
     /// <summary>Целевой WorkflowStep для возврата при отклонении (кастомная цепочка).
     /// Если null — возврат к инициатору (CurrentWorkflowStepId = null).</summary>
     public int? TargetWorkflowStepId { get; set; }
+
+    /// <summary>Опционально: оригинальное имя файла, прикреплённого к решению.
+    /// Записывается в ActionHistory.AttachedFileName.</summary>
+    public string? AttachedFileName { get; set; }
+
+    /// <summary>Опционально: относительный URL файла, прикреплённого к решению.
+    /// Записывается в ActionHistory.AttachedFileUrl.</summary>
+    public string? AttachedFileUrl { get; set; }
 }
 
 public class WorkflowDecisionResult

@@ -16,14 +16,20 @@ public class TmcRequestsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IWorkflowEngineService _workflow;
+    private readonly IFileStorageService _fileStorage;
     private readonly ILogger<TmcRequestsController> _logger;
     private int _totalStages;
     private const string AnyPosition = "Любая должность";
 
-    public TmcRequestsController(AppDbContext db, IWorkflowEngineService workflow, ILogger<TmcRequestsController> logger)
+    public TmcRequestsController(
+        AppDbContext db,
+        IWorkflowEngineService workflow,
+        IFileStorageService fileStorage,
+        ILogger<TmcRequestsController> logger)
     {
         _db = db;
         _workflow = workflow;
+        _fileStorage = fileStorage;
         _logger = logger;
     }
 
@@ -600,7 +606,9 @@ public class TmcRequestsController : ControllerBase
                 WorkflowChainId = entity.WorkflowChainId,
                 CurrentWorkflowStepId = entity.CurrentWorkflowStepId,
                 TargetStageId = dto.TargetStageId,
-                TargetWorkflowStepId = dto.TargetWorkflowStepId
+                TargetWorkflowStepId = dto.TargetWorkflowStepId,
+                AttachedFileName = dto.AttachedFileName,
+                AttachedFileUrl = dto.AttachedFileUrl
             });
 
             if (!result.Success)
@@ -663,6 +671,49 @@ public class TmcRequestsController : ControllerBase
         {
             _logger.LogError(ex, "SubmitDecision exception for RequestId={RequestId}", id);
             return StatusCode(500, new { message = $"Внутренняя ошибка: {ex.Message}" });
+        }
+    }
+
+    /// <summary>Загрузить файл-вложение для действия по заявке.
+    /// Работает в две фазы: клиент сначала загружает файл через этот эндпоинт и получает
+    /// URL, а затем передаёт URL и имя в обычный JSON-вызов /decision. Такой подход
+    /// позволяет оставить основной API согласования чисто JSON-овым и не мучить Blazor WASM
+    /// с multipart-сериализацией в самом диалоге.
+    /// Лимит — 50 МБ (см. LocalFileStorageService и Kestrel-конфиг в Program.cs).</summary>
+    [HttpPost("{id}/attachment")]
+    [RequestSizeLimit(50L * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 50L * 1024 * 1024)]
+    public async Task<ActionResult<UploadedAttachmentDto>> UploadAttachment(
+        int id, [FromForm] IFormFile file, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        var exists = await _db.TmcRequests.AnyAsync(r => r.Id == id, ct);
+        if (!exists)
+            return NotFound(new { message = "Заявка не найдена." });
+
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "Файл не передан или пустой." });
+
+        try
+        {
+            var saved = await _fileStorage.SaveAttachmentAsync(file, ct);
+            return Ok(new UploadedAttachmentDto
+            {
+                FileName = saved.OriginalName,
+                Url = saved.RelativeUrl,
+                Size = saved.Size
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "UploadAttachment failed for RequestId={RequestId}", id);
+            return StatusCode(500, new { message = $"Ошибка сохранения файла: {ex.Message}" });
         }
     }
 
@@ -845,6 +896,8 @@ public class TmcRequestsController : ControllerBase
                 UserName = $"{h.User.LastName} {h.User.FirstName}",
                 UserPosition = h.User.Position,
                 Comment = h.Comment,
+                AttachedFileName = h.AttachedFileName,
+                AttachedFileUrl = h.AttachedFileUrl,
                 CreatedAt = h.CreatedAt
             })
             .ToListAsync();
@@ -880,6 +933,8 @@ public class TmcRequestsController : ControllerBase
                     UserName = $"{h.User.LastName} {h.User.FirstName}",
                     UserPosition = h.User.Position,
                     Comment = h.Comment,
+                    AttachedFileName = h.AttachedFileName,
+                    AttachedFileUrl = h.AttachedFileUrl,
                     CreatedAt = h.CreatedAt
                 }
             })

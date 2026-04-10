@@ -29,6 +29,15 @@ public class ActionHistory
 
     public WorkflowStep? WorkflowStep { get; set; }
 
+    /// <summary>Оригинальное имя файла, прикреплённого к этому действию
+    /// (например, «Счёт от поставщика.pdf»). Отображается в таймлайне истории.</summary>
+    public string? AttachedFileName { get; set; }
+
+    /// <summary>Относительный URL файла внутри wwwroot
+    /// (например, «/uploads/attachments/{guid}.pdf»).
+    /// По этому URL файл доступен для скачивания через статик-сервис ASP.NET.</summary>
+    public string? AttachedFileUrl { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

@@ -138,6 +138,8 @@ public class AppDbContext : DbContext
             entity.HasKey(h => h.Id);
             entity.Property(h => h.Decision).HasConversion<string>().HasMaxLength(20);
             entity.Property(h => h.Comment).HasMaxLength(1000);
+            entity.Property(h => h.AttachedFileName).HasMaxLength(500);
+            entity.Property(h => h.AttachedFileUrl).HasMaxLength(1000);
             entity.HasOne(h => h.User)
                   .WithMany()
                   .HasForeignKey(h => h.UserId)

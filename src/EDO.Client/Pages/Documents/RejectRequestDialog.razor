@@ -1,4 +1,5 @@
 @using EDO.Client.Services
+@using Microsoft.AspNetCore.Components.Forms
 @inject ITmcRequestService RequestService
 @inject ISnackbar Snackbar
 
@@ -45,6 +46,44 @@
                       Required="true"
                       RequiredError="Комментарий обязателен при отклонении"
                       Immediate="true" />
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1" Style="font-weight: 600;">
+            Прикрепить файл (необязательно)
+        </MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+            Например, исправленный счёт или скан с замечаниями. Любой тип, до 50 МБ.
+        </MudText>
+
+        <MudFileUpload T="IBrowserFile"
+                       FilesChanged="OnFileSelected"
+                       MaximumFileCount="1"
+                       Accept="*/*">
+            <CustomContent Context="fileUpload">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.AttachFile"
+                           OnClick="@(async () => await fileUpload.OpenFilePickerAsync())"
+                           Style="text-transform: none;">
+                    @(_selectedFile is null ? "Выбрать файл" : "Заменить файл")
+                </MudButton>
+            </CustomContent>
+        </MudFileUpload>
+
+        @if (_selectedFile is not null)
+        {
+            <MudChip T="string"
+                     Size="Size.Small"
+                     Color="Color.Error"
+                     Icon="@Icons.Material.Filled.Description"
+                     OnClose="ClearFile"
+                     Class="mt-2">
+                @_selectedFile.Name (@FormatSize(_selectedFile.Size))
+            </MudChip>
+            @if (!string.IsNullOrEmpty(_fileError))
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_fileError</MudAlert>
+            }
+        }
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel" Style="text-transform: none;">Отмена</MudButton>
@@ -64,11 +103,16 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public TmcRequestDto Request { get; set; } = null!;
 
+    private const long MaxFileSizeBytes = 50L * 1024 * 1024;
+
     private List<ReturnTargetDto> _targets = new();
     private ReturnTargetKey _selectedKey;
     private string? _comment;
     private bool _loading = true;
     private bool _processing;
+
+    private IBrowserFile? _selectedFile;
+    private string? _fileError;
 
     /// <summary>Уникальный ключ пункта в MudSelect — комбинация StageId/WorkflowStepId
     /// (оба null → синтетический «Инициатор» для кастомной цепочки).</summary>
@@ -112,6 +156,36 @@
 
     private void Cancel() => MudDialog.Cancel();
 
+    private void OnFileSelected(IBrowserFile? file)
+    {
+        _fileError = null;
+        if (file is null)
+        {
+            _selectedFile = null;
+            return;
+        }
+
+        if (file.Size > MaxFileSizeBytes)
+        {
+            _fileError = $"Файл слишком большой: {file.Size / (1024 * 1024)} МБ. Максимум — 50 МБ.";
+            _selectedFile = null;
+            return;
+        }
+
+        _selectedFile = file;
+    }
+
+    private void ClearFile(MudBlazor.MudChip<string> _)
+    {
+        _selectedFile = null;
+        _fileError = null;
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1024 * 1024
+            ? $"{bytes / 1024.0 / 1024.0:0.#} МБ"
+            : $"{Math.Max(1, bytes / 1024)} КБ";
+
     private async Task Submit()
     {
         if (!CanSubmit())
@@ -120,17 +194,45 @@
             return;
         }
 
+        if (_selectedFile is not null && !string.IsNullOrEmpty(_fileError))
+        {
+            Snackbar.Add(_fileError, Severity.Error);
+            return;
+        }
+
         var target = _targets.First(t => KeyOf(t).Equals(_selectedKey));
 
         _processing = true;
         try
         {
+            // Если приложили файл — сначала заливаем, потом передаём его URL в решение.
+            string? attachedName = null;
+            string? attachedUrl = null;
+
+            if (_selectedFile is not null)
+            {
+                await using var stream = _selectedFile.OpenReadStream(MaxFileSizeBytes);
+                var uploaded = await RequestService.UploadAttachmentAsync(
+                    Request.Id,
+                    stream,
+                    _selectedFile.Name,
+                    _selectedFile.ContentType);
+
+                if (uploaded is null)
+                    throw new InvalidOperationException("Сервер не вернул метаданные файла.");
+
+                attachedName = uploaded.FileName;
+                attachedUrl = uploaded.Url;
+            }
+
             await RequestService.SubmitDecisionAsync(Request.Id, new SubmitDecisionDto
             {
                 Decision = "Rejected",
                 Comment = _comment,
                 TargetStageId = target.StageId,
-                TargetWorkflowStepId = target.WorkflowStepId
+                TargetWorkflowStepId = target.WorkflowStepId,
+                AttachedFileName = attachedName,
+                AttachedFileUrl = attachedUrl
             });
 
             var msg = target.IsInitiator
