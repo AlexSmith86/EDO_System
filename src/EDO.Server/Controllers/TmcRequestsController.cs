@@ -423,8 +423,15 @@ public class TmcRequestsController : ControllerBase
         if (entity.WorkflowChainId.HasValue)
         {
             // --- Кастомная цепочка ---
+            // В кастомных цепочках шаг с Order == 0 ("Создание заявки") считается
+            // уже пройденным в момент создания черновика: сам факт сохранения черновика
+            // его закрывает. Поэтому в список доступных стартовых/следующих этапов
+            // его не включаем — иначе при отправке из Draft/Rework пользователь видит
+            // бесполезный пункт «0. Создание заявки». Для стандартного маршрута этой
+            // проблемы нет (там Order == 0 отсутствует как концепт).
             var stepsQuery = _db.WorkflowSteps
-                .Where(s => s.WorkflowChainId == entity.WorkflowChainId.Value);
+                .Where(s => s.WorkflowChainId == entity.WorkflowChainId.Value
+                         && s.Order > 0);
 
             // Если заявка уже на каком-то шаге — показываем только последующие
             if (entity.CurrentWorkflowStep is not null)
