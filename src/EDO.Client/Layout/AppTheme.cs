@@ -17,52 +17,52 @@ public static class AppTheme
     {
         PaletteDark = new PaletteDark
         {
-            // Фоны — глубокий сине-чёрный
+            // Фоны — глубокий тёплый графит в стиле Binance
             Black = "#000000",
-            Background = "#0B1120",
-            Surface = "#151C2C",
-            DrawerBackground = "#111827",
-            DrawerText = "#FFFFFF",
-            DrawerIcon = "#94A3B8",
-            AppbarBackground = "#0B1120",
-            AppbarText = "#FFFFFF",
+            Background = "#181A20",
+            Surface = "#262321",
+            DrawerBackground = "#181A20",
+            DrawerText = "#EAECEF",
+            DrawerIcon = "#848E9C",
+            AppbarBackground = "#181A20",
+            AppbarText = "#EAECEF",
 
-            // Главный акцент — неоновый циан / teal
-            Primary = "#06B6D4",
-            PrimaryContrastText = "#0B1120",
-            Secondary = "#94A3B8",
-            SecondaryContrastText = "#0B1120",
-            Tertiary = "#22D3EE",
-            TertiaryContrastText = "#0B1120",
+            // Главный акцент — фирменный жёлтый Binance
+            Primary = "#FCD535",
+            PrimaryContrastText = "#181A20",
+            Secondary = "#848E9C",
+            SecondaryContrastText = "#181A20",
+            Tertiary = "#F0B90B",
+            TertiaryContrastText = "#181A20",
 
-            // Смысловые цвета — с тёмным контрастным текстом, чтобы статусы читались
-            Success = "#22C55E",
-            SuccessContrastText = "#0B1120",
-            Info = "#22D3EE",
-            InfoContrastText = "#0B1120",
-            Warning = "#F59E0B",
-            WarningContrastText = "#0B1120",
-            Error = "#EF4444",
+            // Смысловые цвета — статусы с тёмным контрастным текстом
+            Success = "#F0B90B",
+            SuccessContrastText = "#181A20",
+            Info = "#848E9C",
+            InfoContrastText = "#181A20",
+            Warning = "#FCD535",
+            WarningContrastText = "#181A20",
+            Error = "#F6465D",
             ErrorContrastText = "#FFFFFF",
-            Dark = "#0B1120",
-            DarkContrastText = "#FFFFFF",
+            Dark = "#181A20",
+            DarkContrastText = "#EAECEF",
 
             // Текст
-            TextPrimary = "#FFFFFF",
-            TextSecondary = "#94A3B8",
-            TextDisabled = "#475569",
-            ActionDefault = "#94A3B8",
-            ActionDisabled = "#475569",
-            ActionDisabledBackground = "#1E293B",
+            TextPrimary = "#EAECEF",
+            TextSecondary = "#848E9C",
+            TextDisabled = "#5E6673",
+            ActionDefault = "#848E9C",
+            ActionDisabled = "#5E6673",
+            ActionDisabledBackground = "#2B3139",
 
-            // Линии и границы — тусклый сине-серый
-            LinesDefault = "#1E293B",
-            LinesInputs = "#1E293B",
-            Divider = "#1E293B",
-            DividerLight = "#151C2C",
-            TableLines = "#1E293B",
-            TableStriped = "#101728",
-            TableHover = "#1B2436",
+            // Линии и границы — нейтральный графитовый
+            LinesDefault = "#2A2A2A",
+            LinesInputs = "#33302E",
+            Divider = "#2A2A2A",
+            DividerLight = "#262321",
+            TableLines = "#2A2A2A",
+            TableStriped = "#1E1C1A",
+            TableHover = "#2B3139",
 
             // Overlays
             HoverOpacity = 0.08
