@@ -15,6 +15,11 @@ public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
 
+    // Должно совпадать с TmcRequestsController.AnyPosition,
+    // чтобы счётчик «Ожидают моего согласования» на дашборде
+    // давал такое же число, как страница /documents/approvals.
+    private const string AnyPosition = "Любая должность";
+
     public DashboardController(AppDbContext db)
     {
         _db = db;
@@ -51,27 +56,50 @@ public class DashboardController : ControllerBase
             .CountAsync(r => r.Status == TmcRequestStatus.Completed || r.Status == TmcRequestStatus.Approved);
 
         // 4. Ожидают моего согласования
+        // Логика должна 1-в-1 совпадать с TmcRequestsController.GetPending:
+        //  - поддерживаются И стандартный маршрут (CurrentStage),
+        //    И кастомные цепочки (CurrentWorkflowStep);
+        //  - делегирование: назначенный ответственный видит заявку всегда;
+        //  - «Любая должность» на шаге кастомной цепочки открывает доступ всем.
         var awaitingCount = 0;
         var pendingRequests = await _db.TmcRequests
             .Include(r => r.CurrentStage)
+            .Include(r => r.CurrentWorkflowStep)
             .Where(r => (r.Status == TmcRequestStatus.InApproval || r.Status == TmcRequestStatus.Rework)
-                     && r.CurrentStageId != null)
+                     && (r.CurrentStageId != null || r.CurrentWorkflowStepId != null))
             .ToListAsync();
 
         foreach (var r in pendingRequests)
         {
-            if (r.CurrentStage is null) continue;
+            bool canAct = false;
 
-            if (r.CurrentStage.RequiredPosition == "Инициатор")
+            // Делегирование: назначенный ответственный всегда видит заявку на текущем этапе
+            if (r.ResponsibleUserId == userId.Value)
             {
-                if (r.InitiatorUserId == userId.Value)
-                    awaitingCount++;
+                canAct = true;
             }
-            else if (string.Equals(user.Position, r.CurrentStage.RequiredPosition,
-                         StringComparison.OrdinalIgnoreCase))
+            else if (r.WorkflowChainId.HasValue && r.CurrentWorkflowStep is not null)
             {
+                // Кастомная цепочка — проверяем TargetPosition шага
+                canAct = string.Equals(r.CurrentWorkflowStep.TargetPosition, AnyPosition, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(user.Position, r.CurrentWorkflowStep.TargetPosition, StringComparison.OrdinalIgnoreCase);
+            }
+            else if (r.CurrentStage is not null)
+            {
+                // Стандартный маршрут
+                if (r.CurrentStage.RequiredPosition == "Инициатор")
+                {
+                    canAct = r.InitiatorUserId == userId.Value;
+                }
+                else
+                {
+                    canAct = string.Equals(user.Position, r.CurrentStage.RequiredPosition,
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            if (canAct)
                 awaitingCount++;
-            }
         }
 
         // 5. Распределение по статусам
