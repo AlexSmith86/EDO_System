@@ -31,6 +31,13 @@ public class TmcRequest
 
     public WorkflowStep? CurrentWorkflowStep { get; set; }
 
+    /// <summary>Назначенный ответственный по заявке (делегирование).
+    /// Если задан — этот пользователь имеет право работать с заявкой
+    /// на текущем этапе наравне с теми, чья должность соответствует этапу.</summary>
+    public int? ResponsibleUserId { get; set; }
+
+    public User? ResponsibleUser { get; set; }
+
     /// <summary>Дата создания</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

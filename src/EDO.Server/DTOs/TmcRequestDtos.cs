@@ -18,9 +18,27 @@ public class TmcRequestDto
     public int TotalStages { get; set; }
     public int? WorkflowChainId { get; set; }
     public string? WorkflowChainName { get; set; }
+
+    /// <summary>Назначенный ответственный (делегирование) — Id пользователя.</summary>
+    public int? ResponsibleUserId { get; set; }
+
+    /// <summary>ФИО назначенного ответственного.</summary>
+    public string? ResponsibleUserName { get; set; }
+
+    /// <summary>Должность назначенного ответственного.</summary>
+    public string? ResponsibleUserPosition { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public List<TmcRequestItemDto> Items { get; set; } = new();
     public List<ApprovalHistoryDto> ApprovalHistory { get; set; } = new();
+}
+
+/// <summary>Назначить ответственного за заявку (делегирование на текущем этапе).</summary>
+public class AssignResponsibleDto
+{
+    /// <summary>Id пользователя, которому делегируется работа с заявкой.
+    /// Передайте null, чтобы снять текущего ответственного.</summary>
+    public int? TargetUserId { get; set; }
 }
 
 public class ApprovalHistoryDto

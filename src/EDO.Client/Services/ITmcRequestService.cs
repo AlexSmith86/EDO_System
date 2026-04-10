@@ -18,9 +18,17 @@ public class TmcRequestDto
     public int TotalStages { get; set; }
     public int? WorkflowChainId { get; set; }
     public string? WorkflowChainName { get; set; }
+    public int? ResponsibleUserId { get; set; }
+    public string? ResponsibleUserName { get; set; }
+    public string? ResponsibleUserPosition { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<TmcRequestItemDto> Items { get; set; } = new();
     public List<ApprovalHistoryDto> ApprovalHistory { get; set; } = new();
+}
+
+public class AssignResponsibleDto
+{
+    public int? TargetUserId { get; set; }
 }
 
 public class ApprovalHistoryDto
@@ -140,6 +148,7 @@ public interface ITmcRequestService
     Task<List<ForwardTargetDto>> GetForwardTargetsAsync(int id);
     Task<TmcRequestDto?> SubmitDecisionAsync(int id, SubmitDecisionDto dto);
     Task<List<ReturnTargetDto>> GetReturnTargetsAsync(int id);
+    Task<TmcRequestDto?> AssignResponsibleAsync(int id, AssignResponsibleDto dto);
     Task DeleteAsync(int id);
     Task<List<string>> GetProjectsAsync();
 }
@@ -220,6 +229,17 @@ public class TmcRequestService : ITmcRequestService
     {
         return await _http.GetFromJsonAsync<List<ReturnTargetDto>>($"api/tmcrequests/{id}/return-targets")
                ?? new List<ReturnTargetDto>();
+    }
+
+    public async Task<TmcRequestDto?> AssignResponsibleAsync(int id, AssignResponsibleDto dto)
+    {
+        var response = await _http.PostAsJsonAsync($"api/tmcrequests/{id}/assign", dto);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"{(int)response.StatusCode}: {body}");
+        }
+        return await response.Content.ReadFromJsonAsync<TmcRequestDto>();
     }
 
     public async Task DeleteAsync(int id)

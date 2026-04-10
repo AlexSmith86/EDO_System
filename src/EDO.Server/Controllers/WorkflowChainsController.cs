@@ -203,6 +203,19 @@ public class WorkflowChainsController : ControllerBase
             }
         }
 
+        // Обнуляем ссылки на шаги цепочки в истории действий —
+        // ActionHistory.WorkflowStepId настроен на Restrict, иначе будет FK violation.
+        var stepIds = chain.Steps.Select(s => s.Id).ToList();
+        if (stepIds.Count > 0)
+        {
+            var historyLinks = await _db.ActionHistories
+                .Where(h => h.WorkflowStepId.HasValue && stepIds.Contains(h.WorkflowStepId!.Value))
+                .ToListAsync();
+
+            foreach (var h in historyLinks)
+                h.WorkflowStepId = null;
+        }
+
         _db.WorkflowSteps.RemoveRange(chain.Steps);
         _db.WorkflowChains.Remove(chain);
         await _db.SaveChangesAsync();

@@ -46,9 +46,19 @@ public class WorkflowEngineService : IWorkflowEngineService
             return false;
         }
 
+        // Делегирование: назначенный ответственный имеет полные права
+        // на текущем этапе независимо от своей должности.
+        var request = await _db.TmcRequests.FindAsync(documentId);
+        if (request?.ResponsibleUserId == userId)
+        {
+            _logger.LogInformation(
+                "CanUserAct: user {UserId} is the assigned responsible for request {DocumentId} — granting access",
+                userId, documentId);
+            return true;
+        }
+
         if (string.Equals(stage.RequiredPosition, InitiatorPosition, StringComparison.OrdinalIgnoreCase))
         {
-            var request = await _db.TmcRequests.FindAsync(documentId);
             var isInitiator = request is not null && request.InitiatorUserId == userId;
             _logger.LogInformation("CanUserAct: initiator check for user {UserId}, result={Result}", userId, isInitiator);
             return isInitiator;
@@ -301,7 +311,12 @@ public class WorkflowEngineService : IWorkflowEngineService
             return new WorkflowDecisionResult { Success = false, Message = "Пользователь не найден." };
         }
 
-        if (!string.Equals(currentStep.TargetPosition, AnyPosition, StringComparison.OrdinalIgnoreCase)
+        // Делегирование: назначенный ответственный обходит проверку должности
+        var documentEntity = await _db.TmcRequests.FindAsync(request.DocumentId);
+        var isResponsible = documentEntity?.ResponsibleUserId == request.UserId;
+
+        if (!isResponsible
+            && !string.Equals(currentStep.TargetPosition, AnyPosition, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(user.Position, currentStep.TargetPosition, StringComparison.OrdinalIgnoreCase))
         {
             return new WorkflowDecisionResult

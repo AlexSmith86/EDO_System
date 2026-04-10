@@ -22,6 +22,16 @@
                 <MudText Typo="Typo.body2" Color="Color.Secondary">Текущий этап</MudText>
                 <MudChip T="string" Size="Size.Small" Color="Color.Warning">@(Request.CurrentStageName ?? "На согласовании")</MudChip>
             </MudItem>
+            @if (Request.ResponsibleUserId.HasValue)
+            {
+                <MudItem xs="12">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Ответственный</MudText>
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning"
+                             Icon="@Icons.Material.Filled.PersonPin">
+                        @Request.ResponsibleUserName@(string.IsNullOrWhiteSpace(Request.ResponsibleUserPosition) ? "" : $" ({Request.ResponsibleUserPosition})")
+                    </MudChip>
+                </MudItem>
+            }
         </MudGrid>
 
         @if (!string.IsNullOrEmpty(Request.CurrentStageDescription))
@@ -111,6 +121,11 @@
     <DialogActions>
         <MudButton OnClick="Cancel" Style="text-transform: none;">Отмена</MudButton>
         <MudSpacer />
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="OpenAssignDialog"
+                   StartIcon="@Icons.Material.Filled.PersonAddAlt1"
+                   Style="text-transform: none;">
+            Назначить ответственного
+        </MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="OpenRejectDialog"
                    StartIcon="@Icons.Material.Filled.Close"
                    Style="text-transform: none;">
@@ -152,6 +167,25 @@
         if (result is { Canceled: false })
         {
             MudDialog.Close(DialogResult.Ok(true));
+        }
+    }
+
+    private async Task OpenAssignDialog()
+    {
+        var parameters = new DialogParameters<AssignResponsibleDialog>
+        {
+            { x => x.Request, Request }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<AssignResponsibleDialog>(
+            $"Назначение ответственного — заявка №{Request.Id}", parameters, options);
+        var result = await dialog.Result;
+
+        // Если вернулся обновлённый DTO — заменим текущий, чтобы плашка обновилась
+        if (result is { Canceled: false, Data: TmcRequestDto updated })
+        {
+            Request = updated;
+            StateHasChanged();
         }
     }
 

@@ -212,6 +212,10 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(r => r.CurrentWorkflowStepId)
                   .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(r => r.ResponsibleUser)
+                  .WithMany()
+                  .HasForeignKey(r => r.ResponsibleUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<TmcRequestItem>(entity =>

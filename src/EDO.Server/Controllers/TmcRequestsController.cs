@@ -365,7 +365,12 @@ public class TmcRequestsController : ControllerBase
         {
             bool canAct = false;
 
-            if (r.WorkflowChainId.HasValue && r.CurrentWorkflowStep is not null)
+            // Делегирование: назначенный ответственный всегда видит заявку на текущем этапе
+            if (r.ResponsibleUserId == userId.Value)
+            {
+                canAct = true;
+            }
+            else if (r.WorkflowChainId.HasValue && r.CurrentWorkflowStep is not null)
             {
                 // Кастомная цепочка — проверяем TargetPosition
                 canAct = string.Equals(r.CurrentWorkflowStep.TargetPosition, AnyPosition, StringComparison.OrdinalIgnoreCase)
@@ -637,6 +642,10 @@ public class TmcRequestsController : ControllerBase
                 }
             }
 
+            // Делегирование действует только на тот этап, на котором было назначено.
+            // При любом движении заявки сбрасываем ответственного.
+            entity.ResponsibleUserId = null;
+
             await _db.SaveChangesAsync();
 
             await EnsureTotalStagesLoaded();
@@ -650,6 +659,120 @@ public class TmcRequestsController : ControllerBase
         }
     }
 
+    /// <summary>Назначить ответственного за заявку (делегирование).
+    /// Право назначить ответственного имеет тот, кто сейчас может работать с заявкой
+    /// на текущем этапе (согласующий по должности или администратор).
+    /// Делегирование действует до движения заявки на следующий этап.</summary>
+    [HttpPost("{id}/assign")]
+    public async Task<ActionResult<TmcRequestDto>> AssignResponsible(int id, [FromBody] AssignResponsibleDto dto)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        var entity = await _db.TmcRequests
+            .Include(r => r.CurrentStage)
+            .Include(r => r.CurrentWorkflowStep)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (entity is null)
+            return NotFound(new { message = "Заявка не найдена." });
+
+        if (entity.Status != TmcRequestStatus.InApproval
+            || (entity.CurrentStageId is null && entity.CurrentWorkflowStepId is null))
+            return BadRequest(new { message = "Назначить ответственного можно только по заявке, находящейся на согласовании." });
+
+        var caller = await _db.Users.FindAsync(userId.Value);
+        if (caller is null) return Unauthorized();
+
+        var isAdmin = User.IsInRole("Администратор");
+
+        // Право делегировать имеют: текущий ответственный, согласующий по должности, администратор
+        bool callerCanAct = isAdmin
+                            || entity.ResponsibleUserId == userId.Value
+                            || await CanCallerActOnCurrentStage(entity, caller);
+
+        if (!callerCanAct)
+            return Forbid();
+
+        // Снять ответственного (TargetUserId == null)
+        if (dto.TargetUserId is null)
+        {
+            if (entity.ResponsibleUserId is null)
+            {
+                await EnsureTotalStagesLoaded();
+                var noopReload = await LoadRequest(entity.Id);
+                return Ok(MapToDto(noopReload!));
+            }
+
+            entity.ResponsibleUserId = null;
+
+            _db.ActionHistories.Add(new ActionHistory
+            {
+                DocumentId = entity.Id,
+                UserId = userId.Value,
+                StageId = entity.CurrentStageId,
+                WorkflowStepId = entity.CurrentWorkflowStepId,
+                Decision = Decision.Reviewed,
+                Comment = "[Система] Ответственный снят.",
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _db.SaveChangesAsync();
+
+            await EnsureTotalStagesLoaded();
+            var cleared = await LoadRequest(entity.Id);
+            return Ok(MapToDto(cleared!));
+        }
+
+        var target = await _db.Users.FindAsync(dto.TargetUserId.Value);
+        if (target is null || !target.IsActive)
+            return BadRequest(new { message = "Назначаемый пользователь не найден или неактивен." });
+
+        entity.ResponsibleUserId = target.Id;
+
+        var fullName = $"{target.LastName} {target.FirstName} {target.MiddleName}".Trim();
+        _db.ActionHistories.Add(new ActionHistory
+        {
+            DocumentId = entity.Id,
+            UserId = userId.Value,
+            StageId = entity.CurrentStageId,
+            WorkflowStepId = entity.CurrentWorkflowStepId,
+            Decision = Decision.Reviewed,
+            Comment = $"[Система] Назначен ответственный: {fullName}, {target.Position}.",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
+        await EnsureTotalStagesLoaded();
+        var updated = await LoadRequest(entity.Id);
+        return Ok(MapToDto(updated!));
+    }
+
+    /// <summary>Проверка: может ли пользователь работать с заявкой на её текущем этапе
+    /// по должности (без учёта делегирования).</summary>
+    private static Task<bool> CanCallerActOnCurrentStage(TmcRequest entity, Models.User caller)
+    {
+        bool result = false;
+
+        if (entity.WorkflowChainId.HasValue && entity.CurrentWorkflowStep is not null)
+        {
+            var pos = entity.CurrentWorkflowStep.TargetPosition;
+            result = string.Equals(pos, AnyPosition, StringComparison.OrdinalIgnoreCase)
+                  || string.Equals(caller.Position, pos, StringComparison.OrdinalIgnoreCase);
+        }
+        else if (entity.CurrentStage is not null)
+        {
+            if (entity.CurrentStage.RequiredPosition == "Инициатор")
+                result = entity.InitiatorUserId == caller.Id;
+            else
+                result = string.Equals(caller.Position, entity.CurrentStage.RequiredPosition,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        return Task.FromResult(result);
+    }
+
     private int? GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -660,6 +783,7 @@ public class TmcRequestsController : ControllerBase
     {
         return _db.TmcRequests
             .Include(r => r.InitiatorUser)
+            .Include(r => r.ResponsibleUser)
             .Include(r => r.CurrentStage)
             .Include(r => r.WorkflowChain).ThenInclude(c => c!.Steps)
             .Include(r => r.CurrentWorkflowStep)
@@ -810,6 +934,11 @@ public class TmcRequestsController : ControllerBase
             TotalStages = total,
             WorkflowChainId = r.WorkflowChainId,
             WorkflowChainName = r.WorkflowChain?.Name,
+            ResponsibleUserId = r.ResponsibleUserId,
+            ResponsibleUserName = r.ResponsibleUser != null
+                ? $"{r.ResponsibleUser.LastName} {r.ResponsibleUser.FirstName}".Trim()
+                : null,
+            ResponsibleUserPosition = r.ResponsibleUser?.Position,
             CreatedAt = r.CreatedAt,
             Items = r.Items.Select(i => new TmcRequestItemDto
             {

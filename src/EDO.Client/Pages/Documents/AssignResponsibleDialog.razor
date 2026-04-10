@@ -1,0 +1,186 @@
+@using EDO.Client.Services
+@inject ITmcRequestService RequestService
+@inject IUserService UserService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Выберите пользователя, который будет ответственным за заявку на текущем этапе.
+            Назначенный ответственный сможет согласовывать или отклонять заявку даже если
+            его должность не совпадает с этапом. При переходе на следующий этап ответственный
+            автоматически снимается.
+        </MudText>
+
+        @if (Request.ResponsibleUserId.HasValue)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                Сейчас ответственный: <b>@Request.ResponsibleUserName</b>
+                @if (!string.IsNullOrWhiteSpace(Request.ResponsibleUserPosition))
+                {
+                    <text> (@Request.ResponsibleUserPosition)</text>
+                }
+            </MudAlert>
+        }
+
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-3" />
+        }
+        else
+        {
+            <MudAutocomplete T="UserDto"
+                             Label="Ответственный"
+                             Value="_selected"
+                             ValueChanged="OnSelectedChanged"
+                             SearchFunc="SearchUsers"
+                             ToStringFunc="@(u => u is null ? string.Empty : BuildLabel(u))"
+                             Variant="Variant.Outlined"
+                             ResetValueOnEmptyText="true"
+                             CoerceText="true"
+                             Clearable="true"
+                             Class="mb-2" />
+
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Начните вводить фамилию или должность для поиска.
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Style="text-transform: none;">Отмена</MudButton>
+        <MudSpacer />
+        @if (Request.ResponsibleUserId.HasValue)
+        {
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Error"
+                       OnClick="ClearResponsible"
+                       Disabled="@_processing"
+                       StartIcon="@Icons.Material.Filled.PersonRemove"
+                       Style="text-transform: none;">
+                Снять ответственного
+            </MudButton>
+        }
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Warning"
+                   OnClick="Submit"
+                   Disabled="@(_processing || _loading || _selected is null)"
+                   StartIcon="@Icons.Material.Filled.PersonAddAlt1"
+                   Style="text-transform: none;">
+            Назначить
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public TmcRequestDto Request { get; set; } = null!;
+
+    private List<UserDto> _users = new();
+    private UserDto? _selected;
+    private bool _loading = true;
+    private bool _processing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            var all = await UserService.GetAllAsync();
+            _users = all
+                .Where(u => u.IsActive)
+                .OrderBy(u => u.LastName)
+                .ThenBy(u => u.FirstName)
+                .ToList();
+
+            if (Request.ResponsibleUserId.HasValue)
+            {
+                _selected = _users.FirstOrDefault(u => u.Id == Request.ResponsibleUserId.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Не удалось загрузить пользователей: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task<IEnumerable<UserDto>> SearchUsers(string? value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult<IEnumerable<UserDto>>(_users.Take(50));
+
+        var v = value.Trim();
+        var filtered = _users
+            .Where(u =>
+                (u.LastName?.Contains(v, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (u.FirstName?.Contains(v, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (u.MiddleName?.Contains(v, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (u.Position?.Contains(v, StringComparison.OrdinalIgnoreCase) ?? false))
+            .Take(50);
+        return Task.FromResult<IEnumerable<UserDto>>(filtered);
+    }
+
+    private void OnSelectedChanged(UserDto? user)
+    {
+        _selected = user;
+    }
+
+    private static string BuildLabel(UserDto u)
+    {
+        var fio = $"{u.LastName} {u.FirstName}".Trim();
+        if (!string.IsNullOrWhiteSpace(u.MiddleName))
+            fio += $" {u.MiddleName}";
+        return string.IsNullOrWhiteSpace(u.Position) ? fio : $"{fio} — {u.Position}";
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        if (_selected is null) return;
+
+        _processing = true;
+        try
+        {
+            var updated = await RequestService.AssignResponsibleAsync(
+                Request.Id,
+                new AssignResponsibleDto { TargetUserId = _selected.Id });
+
+            Snackbar.Add($"Назначен ответственный: {BuildLabel(_selected)}", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(updated));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task ClearResponsible()
+    {
+        _processing = true;
+        try
+        {
+            var updated = await RequestService.AssignResponsibleAsync(
+                Request.Id,
+                new AssignResponsibleDto { TargetUserId = null });
+
+            Snackbar.Add("Ответственный снят", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(updated));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+}
