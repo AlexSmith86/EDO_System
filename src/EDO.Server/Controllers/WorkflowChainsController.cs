@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using EDO.Server.Data;
 using EDO.Server.DTOs;
 using EDO.Server.Models;
@@ -13,6 +14,7 @@ namespace EDO.Server.Controllers;
 public class WorkflowChainsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private const string AnyPosition = "Любая должность";
 
     public WorkflowChainsController(AppDbContext db)
     {
@@ -48,9 +50,29 @@ public class WorkflowChainsController : ControllerBase
     [HttpGet("active")]
     public async Task<ActionResult<List<WorkflowChainDto>>> GetActive()
     {
-        var chains = await _db.WorkflowChains
-            .Where(c => c.IsActive)
-            .Include(c => c.Steps.OrderBy(s => s.Order))
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        var user = await _db.Users.FindAsync(userId.Value);
+        if (user is null) return Unauthorized();
+
+        var userPosition = user.Position ?? "";
+        var isAdmin = User.IsInRole("Администратор");
+
+        var query = _db.WorkflowChains
+            .Where(c => c.IsActive);
+
+        if (!isAdmin)
+        {
+            query = query.Where(c =>
+                c.Steps.Any(s =>
+                    s.Order == c.Steps.Min(x => x.Order)
+                    && (string.IsNullOrEmpty(s.TargetPosition)
+                        || s.TargetPosition == AnyPosition
+                        || s.TargetPosition == userPosition)));
+        }
+
+        var chains = await query
             .OrderBy(c => c.Name)
             .Select(c => new WorkflowChainDto
             {
@@ -221,6 +243,12 @@ public class WorkflowChainsController : ControllerBase
         await _db.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(claim, out var id) ? id : null;
     }
 
     private static WorkflowChainDto MapToDto(WorkflowChain chain) => new()
