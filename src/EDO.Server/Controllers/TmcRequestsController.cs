@@ -133,15 +133,21 @@ public class TmcRequestsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Администратор")]
     public async Task<ActionResult<TmcRequestDto>> Update(int id, [FromBody] UpdateTmcRequestDto dto)
     {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
         var entity = await _db.TmcRequests
             .Include(r => r.Items)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (entity is null)
             return NotFound(new { message = "Заявка не найдена." });
+
+        var isAdmin = User.IsInRole("Администратор");
+        if (entity.InitiatorUserId != userId.Value && !isAdmin)
+            return Forbid();
 
         // Редактировать можно черновики и заявки на доработке
         if (entity.Status != TmcRequestStatus.Draft && entity.Status != TmcRequestStatus.Rework)
@@ -175,15 +181,30 @@ public class TmcRequestsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Администратор")]
     public async Task<IActionResult> Delete(int id)
     {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
         var entity = await _db.TmcRequests
             .Include(r => r.Items)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (entity is null)
             return NotFound(new { message = "Заявка не найдена." });
+
+        var isAdmin = User.IsInRole("Администратор");
+        if (entity.InitiatorUserId != userId.Value && !isAdmin)
+            return Forbid();
+
+        // Инициатор может удалить только свой черновик или заявку на доработке;
+        // админ — любую.
+        if (!isAdmin
+            && entity.Status != TmcRequestStatus.Draft
+            && entity.Status != TmcRequestStatus.Rework)
+        {
+            return BadRequest(new { message = "Удалить можно только заявки в статусе 'Черновик' или 'На доработке'." });
+        }
 
         var relatedHistory = await _db.ActionHistories
             .Where(h => h.DocumentId == id)

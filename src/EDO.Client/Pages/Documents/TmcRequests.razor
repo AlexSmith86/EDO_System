@@ -130,10 +130,10 @@
                 <MudIconButton Icon="@Icons.Material.Filled.Send" Size="Size.Small" Color="Color.Success"
                                OnClick="@(() => SendRequest(context.Id))" />
             }
-            @if (_isAdmin)
+            @if (_isAdmin || (isOwner && (context.Status == "Draft" || context.Status == "Rework")))
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                               OnClick="@(() => DeleteRequest(context.Id))" />
+                               OnClick="@(() => DeleteRequest(context.Id, context.Status))" />
             }
         </MudTd>
     </RowTemplate>
@@ -271,11 +271,13 @@
         }
     }
 
-    private async Task DeleteRequest(int id)
+    private async Task DeleteRequest(int id, string status)
     {
-        if (!_isAdmin)
+        // Админ удаляет любую заявку; инициатор — только свой черновик
+        // или свою заявку, возвращённую на доработку.
+        if (!_isAdmin && status != "Draft" && status != "Rework")
         {
-            Snackbar.Add("Удаление доступно только администратору", Severity.Warning);
+            Snackbar.Add("Удалить можно только заявки в статусе «Черновик» или «На доработке»", Severity.Warning);
             return;
         }
 

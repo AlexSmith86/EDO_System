@@ -196,6 +196,8 @@ else
         {
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             _isAdmin = authState.User.IsInRole("Администратор");
+            var idClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            _ = int.TryParse(idClaim, out var currentUserId);
 
             _groups = await CategoryService.GetGroupsAsync();
             _users = await UserService.GetAllAsync();
@@ -204,46 +206,60 @@ else
 
             if (Id.HasValue)
             {
-                if (!_isAdmin)
+                _isEdit = true;
+                var existing = await RequestService.GetByIdAsync(Id.Value);
+                if (existing is null)
                 {
-                    Snackbar.Add("Редактирование вводных доступно только администратору", Severity.Warning);
+                    Snackbar.Add("Заявка не найдена", Severity.Warning);
                     Navigation.NavigateTo("/documents/tmcrequests");
                     return;
                 }
-                _isEdit = true;
-                var existing = await RequestService.GetByIdAsync(Id.Value);
-                if (existing is not null)
+
+                // Редактировать может инициатор заявки или администратор —
+                // и только в статусах «Черновик» / «На доработке».
+                var isOwner = existing.InitiatorUserId == currentUserId;
+                if (!_isAdmin && !isOwner)
                 {
-                    _projectName = existing.ProjectName;
-                    foreach (var i in existing.Items)
+                    Snackbar.Add("Редактировать заявку может только её инициатор или администратор", Severity.Warning);
+                    Navigation.NavigateTo("/documents/tmcrequests");
+                    return;
+                }
+                if (existing.Status != "Draft" && existing.Status != "Rework")
+                {
+                    Snackbar.Add("Редактировать можно только заявки в статусе «Черновик» или «На доработке»", Severity.Warning);
+                    Navigation.NavigateTo("/documents/tmcrequests");
+                    return;
+                }
+
+                _projectName = existing.ProjectName;
+                foreach (var i in existing.Items)
+                {
+                    var row = new RequestItemRow
                     {
-                        var row = new RequestItemRow
-                        {
-                            Name = i.Name,
-                            Quantity = i.Quantity,
-                            Unit = i.Unit,
-                            Price = i.Price,
-                            PlannedDeliveryDate = i.PlannedDeliveryDate,
-                            InvoiceLink = i.InvoiceLink,
-                            Comment = i.Comment,
-                            InitiatorName = i.InitiatorName,
-                            InitiatorPosition = i.InitiatorPosition
-                        };
+                        Name = i.Name,
+                        Quantity = i.Quantity,
+                        Unit = i.Unit,
+                        Price = i.Price,
+                        PlannedDeliveryDate = i.PlannedDeliveryDate,
+                        InvoiceLink = i.InvoiceLink,
+                        Comment = i.Comment,
+                        InitiatorName = i.InitiatorName,
+                        InitiatorPosition = i.InitiatorPosition
+                    };
 
-                        if (i.GroupId.HasValue)
+                    if (i.GroupId.HasValue)
+                    {
+                        row.SelectedGroup = _groups.FirstOrDefault(g => g.Id == i.GroupId.Value);
+                        if (row.SelectedGroup != null)
                         {
-                            row.SelectedGroup = _groups.FirstOrDefault(g => g.Id == i.GroupId.Value);
-                            if (row.SelectedGroup != null)
-                            {
-                                row.Subgroups = await CategoryService.GetSubgroupsAsync(row.SelectedGroup.Id);
-                                AppendOtherOption(row.Subgroups);
-                                if (i.SubgroupId.HasValue)
-                                    row.SelectedSubgroup = row.Subgroups.FirstOrDefault(s => s.Id == i.SubgroupId.Value);
-                            }
+                            row.Subgroups = await CategoryService.GetSubgroupsAsync(row.SelectedGroup.Id);
+                            AppendOtherOption(row.Subgroups);
+                            if (i.SubgroupId.HasValue)
+                                row.SelectedSubgroup = row.Subgroups.FirstOrDefault(s => s.Id == i.SubgroupId.Value);
                         }
-
-                        _items.Add(row);
                     }
+
+                    _items.Add(row);
                 }
             }
         }
